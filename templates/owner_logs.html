@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Owner Audit Logs - Cyberpunk Admin{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>[OWNER AUDIT MATRIX] // ADMIN ACTIVITY & IP TRACKER</h2>
+    <p style="color: var(--text-muted);">Yöneticilerin panele girişleri, hangi alt sekmeleri ziyaret ettikleri, IP adresleri ve yaptıkları tüm işlemler.</p>
+
+    <div class="log-controls" style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+        <input type="text" id="logSearch" placeholder="Loglarda ara (Admin adı, IP, işlem)..." oninput="filterLogs()" style="flex: 1; background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px; font-family: monospace;">
+    </div>
+
+    <div style="overflow-x: auto;">
+        <table id="auditTable">
+            <thead>
+                <tr>
+                    <th>Zaman (UTC)</th>
+                    <th>Admin Hesap</th>
+                    <th>IP Adresi</th>
+                    <th>İşlem / Sayfa</th>
+                    <th>Detaylar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td style="white-space: nowrap; color: var(--text-muted);">{{ log[0] }}</td>
+                    <td><strong style="color: var(--neon-cyan);">{{ log[1] }}</strong></td>
+                    <td><span style="color: var(--neon-yellow);">{{ log[2] }}</span></td>
+                    <td><code style="color: var(--neon-pink);">{{ log[3] }}</code></td>
+                    <td style="font-size: 12px; color: var(--text-muted);">{{ log[4] }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted);">Henüz kayıtlı admin aktivitesi bulunmuyor.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function filterLogs() {
+        const query = document.getElementById('logSearch').value.toLowerCase();
+        const rows = document.querySelectorAll('#auditTable tbody tr');
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Admin Management - Cyberpunk Admin{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>[SECURITY MATRIX] // ADMIN ACCOUNTS MANAGEMENT</h2>
+    <p style="color: var(--text-muted);">Sisteme erişebilecek yönetici hesaplarını ve şifrelerini veritabanı üzerinden güvenle ekleyin veya kaldırın.</p>
+
+    <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: 6px; margin-bottom: 25px;">
+        <h3 style="margin-top: 0; color: var(--neon-cyan);">Yeni Admin Ekle / Şifre Güncelle</h3>
+        <form method="POST" action="/admin/settings/admins/add" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">Kullanıcı Adı (Username)</label>
+                <input type="text" name="username" required placeholder="Örn: devpact" style="width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px; font-family: monospace;">
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">Şifre (Password)</label>
+                <input type="password" name="password" required placeholder="Güçlü şifre girin" style="width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px; font-family: monospace;">
+            </div>
+            <div>
+                <input type="submit" value="KAYDET / GÜNCELLE" style="background: var(--neon-cyan); border: none; color: #000; font-weight: bold; padding: 9px 20px; cursor: pointer; font-family: monospace;">
+            </div>
+        </form>
+    </div>
+
+    <h3 style="color: var(--neon-yellow);">Aktif Yönetici Hesapları</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Kullanıcı Adı</th>
+                <th>Rol</th>
+                <th>İşlem</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for adm in admins %}
+            <tr>
+                <td>{{ adm[0] }}</td>
+                <td><strong style="color: var(--neon-cyan);">{{ adm[1] }}</strong></td>
+                <td>{{ adm[2] }}</td>
+                <td>
+                    <form method="POST" action="/admin/settings/admins/delete" style="display:inline;" onsubmit="return confirm('Bu yöneticiyi silmek istediğinize emin misiniz?');">
+                        <input type="hidden" name="admin_id" value="{{ adm[0] }}">
+                        <input type="submit" value="SİL" style="background: transparent; border: 1px solid var(--neon-red); color: var(--neon-red); padding: 4px 10px; font-size: 11px; cursor: pointer;">
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted);">Kayıtlı admin hesabı bulunmuyor.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
