@@ -629,7 +629,7 @@ class HackStepButton(discord.ui.Button):
 
 class HackStepView(discord.ui.View):
     def __init__(self, correct_code: str, target_id: int, difficulty: str, total_steps: int, current_step: int):
-        super().__init__(timeout=2.0)
+        super().__init__(timeout=4.0)
         self.target_id = target_id
         self.correct_code = correct_code
         self.difficulty = difficulty
@@ -713,7 +713,7 @@ async def start_hack_session(interaction: discord.Interaction, target_id: int, d
     correct_code = generate_node_code()
     embed = discord.Embed(
         title=f"[MATRIX HACKING] // ZORLUK: {difficulty}",
-        description=f"Terminal bağlantısı aktif.\n\n🎯 **Hedef Node:** `{correct_code}`\n📊 **İlerleme:** Adım {current_step} / {total_steps}\n⏱️ **Süre:** Her adım için 2 Saniye!",
+        description=f"Terminal bağlantısı aktif.\n\n🎯 **Hedef Node:** `{correct_code}`\n📊 **İlerleme:** Adım {current_step} / {total_steps}\n⏱️ **Süre:** Her adım için 4 Saniye!",
         color=discord.Color(0x00F0FF)
     )
     view = HackStepView(correct_code, target_id, difficulty, total_steps, current_step)
