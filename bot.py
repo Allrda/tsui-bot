@@ -505,7 +505,7 @@ class DeathGambleStage2View(discord.ui.View):
                 await interaction.followup.send("Kumar için yeterli bakiyeniz bulunmuyor!", ephemeral=False)
                 return
 
-            is_win = random.random() < 0.5
+            is_win = random.random() < 0.2
 
             if is_win:
                 gain = balance * 1.9
@@ -903,7 +903,7 @@ async def death_gambling(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="╔════════════════════════════════════════╗\n║          ☠️ ÖLÜM KUMARI (HIGH STAKES)  ║\n╚════════════════════════════════════════╝",
-        description=f"Operative **{row[1]}**, ölüm kumarı masasına oturdunuz.\n\n• **Kazanma (%50 Şans):** Tüm servetiniz %190 oranında katlanır.\n• **Kaybetme (%50 Şans):** Her şeyiniz (%50 bakiye, envanter, stat, tolerans) yarı yarıya düşer ve **☠️ Beceriksiz Kumarbaz Damgası** alırsınız.\n\nDevam etmek için aşağıdaki uyarı butonuna tıklayın.",
+        description=f"Operative **{row[1]}**, ölüm kumarı masasına oturdunuz.\n\n• **Kazanma (%20 Şans):** Tüm servetiniz %190 oranında katlanır.\n• **Kaybetme (%80 Şans):** Her şeyiniz (%50 bakiye, envanter, stat, tolerans) yarı yarıya düşer ve **☠️ Beceriksiz Kumarbaz Damgası** alırsınız.\n\nDevam etmek için aşağıdaki uyarı butonuna tıklayın.",
         color=discord.Color(0xFF0055)
     )
     await interaction.response.send_message(embed=embed, view=DeathGambleStage1View(user_id), ephemeral=False)
