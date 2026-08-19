@@ -505,7 +505,7 @@ class DeathGambleStage2View(discord.ui.View):
                 await interaction.followup.send("Kumar için yeterli bakiyeniz bulunmuyor!", ephemeral=False)
                 return
 
-            is_win = random.random() < 0.2
+            is_win = random.random() < 0.1
 
             if is_win:
                 gain = balance * 1.9
@@ -629,7 +629,7 @@ class HackStepButton(discord.ui.Button):
 
 class HackStepView(discord.ui.View):
     def __init__(self, correct_code: str, target_id: int, difficulty: str, total_steps: int, current_step: int):
-        super().__init__(timeout=4.0)
+        super().__init__(timeout=3.0)
         self.target_id = target_id
         self.correct_code = correct_code
         self.difficulty = difficulty
@@ -713,7 +713,7 @@ async def start_hack_session(interaction: discord.Interaction, target_id: int, d
     correct_code = generate_node_code()
     embed = discord.Embed(
         title=f"[MATRIX HACKING] // ZORLUK: {difficulty}",
-        description=f"Terminal bağlantısı aktif.\n\n🎯 **Hedef Node:** `{correct_code}`\n📊 **İlerleme:** Adım {current_step} / {total_steps}\n⏱️ **Süre:** Her adım için 4 Saniye!",
+        description=f"Terminal bağlantısı aktif.\n\n🎯 **Hedef Node:** `{correct_code}`\n📊 **İlerleme:** Adım {current_step} / {total_steps}\n⏱️ **Süre:** Her adım için 3 Saniye!",
         color=discord.Color(0x00F0FF)
     )
     view = HackStepView(correct_code, target_id, difficulty, total_steps, current_step)
@@ -903,7 +903,7 @@ async def death_gambling(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="╔════════════════════════════════════════╗\n║          ☠️ ÖLÜM KUMARI (HIGH STAKES)  ║\n╚════════════════════════════════════════╝",
-        description=f"Operative **{row[1]}**, ölüm kumarı masasına oturdunuz.\n\n• **Kazanma (%20 Şans):** Tüm servetiniz %190 oranında katlanır.\n• **Kaybetme (%80 Şans):** Her şeyiniz (%50 bakiye, envanter, stat, tolerans) yarı yarıya düşer ve **☠️ Beceriksiz Kumarbaz Damgası** alırsınız.\n\nDevam etmek için aşağıdaki uyarı butonuna tıklayın.",
+        description=f"Operative **{row[1]}**, ölüm kumarı masasına oturdunuz.\n\n• **Kazanma (%10 Şans):** Tüm servetiniz %190 oranında katlanır.\n• **Kaybetme (%90 Şans):** Her şeyiniz (%50 bakiye, envanter, stat, tolerans) yarı yarıya düşer ve **☠️ Beceriksiz Kumarbaz Damgası** alırsınız.\n\nDevam etmek için aşağıdaki uyarı butonuna tıklayın.",
         color=discord.Color(0xFF0055)
     )
     await interaction.response.send_message(embed=embed, view=DeathGambleStage1View(user_id), ephemeral=False)
