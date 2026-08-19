@@ -629,7 +629,7 @@ class HackStepButton(discord.ui.Button):
 
 class HackStepView(discord.ui.View):
     def __init__(self, correct_code: str, target_id: int, difficulty: str, total_steps: int, current_step: int):
-        super().__init__(timeout=3.0)
+        super().__init__(timeout=3.5)
         self.target_id = target_id
         self.correct_code = correct_code
         self.difficulty = difficulty
