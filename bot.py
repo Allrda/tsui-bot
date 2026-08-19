@@ -341,7 +341,7 @@ def generate_tolerance_bar(current: float, max_tol: float, boost: float = 0.0) -
     bar = "🔴" * filled + "░" * (total_slots - filled)
     return f"[(  {bar}  )] %{current:.1f} / %{effective_max:.1f} (Boost: +%{boost:.1f})"
 
-class StatDistModal(discord.ui.Modal, title="[NEURAL MATRIX] // STAT DAĞITIM MERKEZİ"):
+class StatDistModal(discord.ui.Modal, title="STAT DAĞITIM MERKEZİ"):
     strength = discord.ui.TextInput(label="Strength (Kuvvet)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
     reflexes = discord.ui.TextInput(label="Reflexes (Refleks)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
     technical = discord.ui.TextInput(label="Technical (Teknik)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
@@ -657,7 +657,7 @@ class HackStepView(discord.ui.View):
         if self.message:
             try:
                 embed = discord.Embed(
-                    title="[MATRIX HACKING] // TIMEOUT",
+                    title="[NETRUNNING] // TIMEOUT",
                     description=f"❌ <@{self.target_id}> hack başarısız oldu!",
                     color=discord.Color(0xFF0055)
                 )
