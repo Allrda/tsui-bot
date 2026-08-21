@@ -65,6 +65,8 @@ OWNER_PASSWORD = os.getenv("OWNER_PASSWORD", "owner")
 
 # --- 1. TEMEL DEĞİŞKENLER VE KONFİGÜRASYON ---
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+if not BOT_TOKEN or BOT_TOKEN == "your_bot_token_here":
+    raise ValueError("BOT_TOKEN is missing or not set in .env file!")
 GUILD_ID = int(os.getenv("GUILD_ID", "1386773654876197005"))
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "1534697839643463770"))
 HARDCORE_OWNER_ID = int(os.getenv("HARDCORE_OWNER_ID", "973745249543401482"))
