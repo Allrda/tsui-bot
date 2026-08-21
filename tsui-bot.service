@@ -1,0 +1,17 @@
+[Unit]
+Description=TSUI Cyberpunk Discord Bot & FastAPI Admin Panel
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/tsui-bot
+ExecStart=/usr/bin/python3 /root/tsui-bot/bot.py
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=tsui-bot
+
+[Install]
+WantedBy=multi-user.target

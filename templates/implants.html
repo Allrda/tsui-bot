@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Hardware Catalog - Cyberpunk Admin{% endblock %}
+{% block content %}
+<div class="section">
+    <h2>[CATALOG] // HARDWARE & IMPLANTS INVENTORY</h2>
+    <p style="color: var(--text-muted);">Sistemdeki implant ve donanım envanter yönetimi.</p>
+    <table>
+        <tr>
+            <th>Implant ID</th>
+            <th>User ID</th>
+            <th>Slot Region</th>
+            <th>Implant Name</th>
+            <th>Tolerance Cost</th>
+        </tr>
+        {% if implants %}
+            {% for imp in implants %}
+            <tr>
+                <td>{{ imp.id }}</td>
+                <td>{{ imp.user_id }}</td>
+                <td><span class="badge badge-cyan">{{ imp.slot_region }}</span></td>
+                <td><strong>{{ imp.implant_name }}</strong></td>
+                <td>%{{ imp.tolerance_cost }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted);">Kayıtlı implant bulunamadı.</td>
+            </tr>
+        {% endif %}
+    </table>
+</div>
+{% endblock %}
