@@ -1,8 +1,11 @@
 # Dosya Konumu: /bot_cog.py
+import datetime
+
 import discord
 from discord.ext import commands, tasks
-import datetime
+
 from database import get_db
+
 
 class ActivityInactivityCog(commands.Cog):
     def __init__(self, bot: commands.Bot, owner_ids: list, admin_ids: list, guild_id: int):
@@ -24,7 +27,7 @@ class ActivityInactivityCog(commands.Cog):
         username = str(message.author)
         channel_id = message.channel.id
         channel_name = message.channel.name
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         hour = now.hour
         timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -61,7 +64,7 @@ class ActivityInactivityCog(commands.Cog):
             if not guild:
                 return
 
-            now = datetime.datetime.utcnow()
+            now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             inactive_users = []
 
             db = await get_db()

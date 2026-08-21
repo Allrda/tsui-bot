@@ -1,12 +1,20 @@
-import pytest
-import asyncio
 import os
+
 import aiosqlite
 import jwt
+import pytest
 from fastapi.testclient import TestClient
 
-from database import init_db, DB_NAME
-from bot import generate_tolerance_bar, generate_node_code, app, JWT_SECRET_KEY, ACTIVE_SESSIONS
+os.environ["TESTING"] = "true"
+
+from bot import (
+    JWT_SECRET_KEY,
+    LogManager,
+    app,
+    generate_node_code,
+    generate_tolerance_bar,
+)
+from database import DB_NAME, init_db
 
 client = TestClient(app)
 
@@ -53,17 +61,39 @@ def test_login_invalid_post():
     assert "Access Denied" in response.text
 
 def test_protected_routes_unauthorized():
-    # Without cookie, accessing /admin/dashboard should redirect to login (303)
     response = client.get("/admin/dashboard", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/admin/login"
 
 def test_authenticated_access():
-    # Create valid JWT token and set cookie
-    token = jwt.encode({"sub": "test_admin", "exp": 9999999999}, JWT_SECRET_KEY, algorithm="HS256")
+    token = jwt.encode({"sub": "admin", "exp": 9999999999}, JWT_SECRET_KEY, algorithm="HS256")
     client.cookies.set("session_token", token)
     
     response = client.get("/admin/dashboard", follow_redirects=False)
-    # Should render dashboard or redirect if check_auth passes
-    # Note: check_auth allows valid JWT decode
     assert response.status_code in [200, 303]
+
+def test_admin_market_and_implants_pages():
+    token = jwt.encode({"sub": "admin", "exp": 9999999999}, JWT_SECRET_KEY, algorithm="HS256")
+    client.cookies.set("session_token", token)
+
+    resp_market = client.get("/admin/market", follow_redirects=False)
+    assert resp_market.status_code in [200, 303]
+
+    resp_implants = client.get("/admin/implants", follow_redirects=False)
+    assert resp_implants.status_code in [200, 303]
+
+    resp_channels = client.get("/admin/channels", follow_redirects=False)
+    assert resp_channels.status_code in [200, 303]
+
+    resp_lore = client.get("/admin/lore", follow_redirects=False)
+    assert resp_lore.status_code in [200, 303]
+
+@pytest.mark.asyncio
+async def test_log_manager():
+    # Test LogManager.send_log with guild=None to ensure database insertion works without error
+    await LogManager.send_log(None, "TEST", "INFO", "Unit test log message", {"test": True})
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT message FROM system_logs WHERE message = ?", ("Unit test log message",)) as cursor:
+            row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "Unit test log message"

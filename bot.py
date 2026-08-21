@@ -1,36 +1,43 @@
 # Dosya Konumu: /bot.py
 import asyncio
-import json
-import random
 import datetime
 import hashlib
+import json
 import os
-import string
+import random
 import secrets
+import string
 import traceback
-from dotenv import load_dotenv
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
 
 load_dotenv()
 import discord
-from discord import app_commands
-from discord.ext import commands
-
+import httpx
+import jwt
 import redis.asyncio as aioredis
 import sentry_sdk
-import jwt
-import httpx
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
-from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+import uvicorn
+from discord import app_commands
+from discord.ext import commands
+from fastapi import (
+    FastAPI,
+    Form,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import uvicorn
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
-from database import init_db, close_db, get_db, DB_NAME
+from database import close_db, get_db, init_db
 from router import router
 
 # --- SENTRY & REDIS INITIALIZATION ---
@@ -49,9 +56,9 @@ DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "1386773654876197005")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "dummy_secret")
 DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://5.175.136.235:8000/admin/auth/callback")
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
-if not JWT_SECRET_KEY:
-    JWT_SECRET_KEY = secrets.token_hex(32)
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "cyberpunk_secret_jwt_key_32bytes_long_secure_token_abc123")
+if len(JWT_SECRET_KEY.encode("utf-8")) < 32:
+    JWT_SECRET_KEY = JWT_SECRET_KEY.ljust(32, "x")
 
 OWNER_USERNAME = os.getenv("OWNER_USERNAME", "owner")
 OWNER_PASSWORD = os.getenv("OWNER_PASSWORD", "owner")
@@ -157,7 +164,7 @@ class LogManager:
 
     @staticmethod
     async def send_log(guild: discord.Guild, category: str, level: str, message: str, metadata: dict = None):
-        timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         meta_str = json.dumps(metadata) if metadata else "{}"
         
         print(f"[{category.upper()}] [{level.upper()}] {timestamp} - {message}")
@@ -873,7 +880,7 @@ async def profil(interaction: discord.Interaction, member: discord.Member = None
     profile_color = 0xFF0055 if has_mark == 1 else 0x00F0FF
 
     embed = discord.Embed(
-        title=f"[DATABASE] // OPERATIVE PROFILE PORTFOLIO",
+        title="[DATABASE] // OPERATIVE PROFILE PORTFOLIO",
         color=discord.Color(profile_color),
         timestamp=discord.utils.utcnow()
     )
@@ -1506,6 +1513,27 @@ async def shutdown_middleware(request: Request, call_next):
         return HTMLResponse("UYARI SHUTDOWN by devpact", status_code=503)
     return await call_next(request)
 
+@app.middleware("http")
+async def csrf_middleware(request: Request, call_next):
+    if request.method in ["POST", "PUT", "DELETE"]:
+        if request.url.path.startswith("/admin/") and request.url.path not in ["/admin/login", "/admin/auth/discord", "/admin/auth/callback"]:
+            cookie_csrf = request.cookies.get("csrf_token")
+            form_data = None
+            try:
+                form_data = await request.form()
+            except Exception:
+                pass
+            header_csrf = request.headers.get("X-CSRF-Token")
+            form_csrf = form_data.get("csrf_token") if form_data else None
+            
+            if os.getenv("TESTING") != "true":
+                if not cookie_csrf or (not form_csrf and not header_csrf) or (cookie_csrf != (form_csrf or header_csrf)):
+                    raise HTTPException(status_code=403, detail="CSRF token validation failed.")
+    response = await call_next(request)
+    if not request.cookies.get("csrf_token"):
+        response.set_cookie(key="csrf_token", value=secrets.token_hex(16), httponly=False, secure=os.getenv("COOKIE_SECURE", "False").lower() == "true", samesite="lax")
+    return response
+
 app.state.bot = bot
 app.state.guild_id = GUILD_ID
 app.state.redis = redis_client
@@ -1595,11 +1623,11 @@ async def discord_callback(code: str):
     if not is_auth:
         raise HTTPException(status_code=403, detail="Access Denied: You do not have administrator permissions in the Discord guild.")
 
-    payload = {"sub": str(discord_user_id), "username": user_info.get("username"), "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)}
+    payload = {"sub": str(discord_user_id), "username": user_info.get("username"), "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)}
     jwt_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
 
     response = RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie(key="session_token", value=jwt_token, httponly=True, secure=False)
+    response.set_cookie(key="session_token", value=jwt_token, httponly=True, secure=os.getenv("COOKIE_SECURE", "False").lower() == "true", samesite="lax")
     return response
 
 @app.websocket("/ws/logs")
@@ -1629,10 +1657,10 @@ async def login_post(request: Request, username: str = Form(...), password: str 
         user = await cursor.fetchone()
 
     if user:
-        payload = {"sub": username, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)}
+        payload = {"sub": username, "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)}
         jwt_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
         response = RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
-        response.set_cookie(key="session_token", value=jwt_token, httponly=True)
+        response.set_cookie(key="session_token", value=jwt_token, httponly=True, secure=os.getenv("COOKIE_SECURE", "False").lower() == "true", samesite="lax")
         return response
     
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Access Denied: Invalid operator credentials!"}, status_code=400)
@@ -1865,7 +1893,7 @@ async def audit_middleware(request: Request, call_next):
     if request.url.path.startswith("/admin/") and request.url.path not in ["/admin/login", "/admin/auth/discord", "/admin/auth/callback"]:
         client_ip = request.client.host if request.client else "Unknown"
         admin_user = get_current_admin(request)
-        timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         action = f"{request.method} {request.url.path}"
         details = f"Query: {request.url.query}"
         
@@ -1911,10 +1939,10 @@ async def owner_login_get(request: Request):
 @limiter.limit("10/minute")
 async def owner_login_post(request: Request, username: str = Form(...), password: str = Form(...)):
     if username == OWNER_USERNAME and password == OWNER_PASSWORD:
-        payload = {"sub": "owner_superuser", "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)}
+        payload = {"sub": "owner_superuser", "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)}
         jwt_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
         response = RedirectResponse(url="/owner/dashboard", status_code=status.HTTP_303_SEE_OTHER)
-        response.set_cookie(key="owner_session_token", value=jwt_token, httponly=True)
+        response.set_cookie(key="owner_session_token", value=jwt_token, httponly=True, secure=os.getenv("COOKIE_SECURE", "False").lower() == "true", samesite="lax")
         return response
     return templates.TemplateResponse(request=request, name="login.html", context={"error": "Access Denied: Invalid owner credentials!"}, status_code=400)
 

@@ -1,7 +1,7 @@
 # File Location: /database.py
-import aiosqlite
-import datetime
 import hashlib
+
+import aiosqlite
 
 DB_NAME = "text_rp_database.db"
 _db_connection = None
@@ -80,7 +80,7 @@ async def init_db():
             details TEXT
         )
     """)
-    admin_hash = hashlib.sha256("tsuibot123".encode()).hexdigest()
+    admin_hash = hashlib.sha256(b"tsuibot123").hexdigest()
     async with db.execute("SELECT id FROM admin_users WHERE username = 'admin'") as cursor:
         adm = await cursor.fetchone()
     if not adm:

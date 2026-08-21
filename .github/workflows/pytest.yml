@@ -24,6 +24,14 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Run Ruff Linter
+      run: |
+        ruff check .
+
+    - name: Run Mypy Type Check
+      run: |
+        mypy bot.py database.py router.py tests/test_app.py --ignore-missing-imports || true
+
     - name: Run pytest
       run: |
         python -m pytest

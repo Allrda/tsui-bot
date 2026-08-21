@@ -1,7 +1,7 @@
 # Dosya Konumu: /backup_db.py
-import shutil
 import datetime
 import os
+import shutil
 
 DB_PATH = "text_rp_database.db"
 BACKUP_DIR = "backups"
