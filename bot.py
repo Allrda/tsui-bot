@@ -10,6 +10,9 @@ import string
 import traceback
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
+
+load_dotenv()
 import discord
 import httpx
 import jwt
@@ -39,32 +42,32 @@ from router import router
 
 # --- SENTRY & REDIS INITIALIZATION ---
 sentry_sdk.init(
-    dsn="",
+    dsn=os.getenv("SENTRY_DSN", ""),
     traces_sample_rate=1.0,
 )
 
-REDIS_URL = "redis://localhost:6379/0"
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 try:
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
 except Exception:
     redis_client = None
 
-DISCORD_CLIENT_ID = "1386773654876197005"
-DISCORD_CLIENT_SECRET = "dummy_secret"
-DISCORD_REDIRECT_URI = "http://5.175.136.235:8000/admin/auth/callback"
+DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "1386773654876197005")
+DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "dummy_secret")
+DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://5.175.136.235:8000/admin/auth/callback")
 
-JWT_SECRET_KEY = "cyberpunk_secret_jwt_key_32bytes_long_secure_token_abc123"
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "cyberpunk_secret_jwt_key_32bytes_long_secure_token_abc123")
 if len(JWT_SECRET_KEY.encode("utf-8")) < 32:
     JWT_SECRET_KEY = JWT_SECRET_KEY.ljust(32, "x")
 
-OWNER_USERNAME = "owner"
-OWNER_PASSWORD = "owner"
+OWNER_USERNAME = os.getenv("OWNER_USERNAME", "owner")
+OWNER_PASSWORD = os.getenv("OWNER_PASSWORD", "owner")
 
 # --- 1. TEMEL DEĞİŞKENLER VE KONFİGÜRASYON ---
-BOT_TOKEN = "MTUzMzUzNTI4MzE1OTQ5ODgwMg.GeUgQu.xH8nYLaUKaKvZ0POWap6itoQmhi6BM_iuNpDCU"
-GUILD_ID = 1386773654876197005
-LOG_CHANNEL_ID = 1534697839643463770
-HARDCORE_OWNER_ID = 973745249543401482
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+GUILD_ID = int(os.getenv("GUILD_ID", "1386773654876197005"))
+LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "1534697839643463770"))
+HARDCORE_OWNER_ID = int(os.getenv("HARDCORE_OWNER_ID", "973745249543401482"))
 
 DEFAULT_OWNERS = [671439881909698560, 1152921256837001288, 957268410662805564]
 DEFAULT_ADMINS = [671439881909698560, 1152921256837001288, 957268410662805564]
