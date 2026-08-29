@@ -10,3 +10,4 @@ slowapi>=0.1.9
 sentry-sdk>=1.30.0
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
+httpx>=0.24.0
