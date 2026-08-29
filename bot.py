@@ -27,7 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
-from database import init_db, DB_NAME
+from database import init_db, DB_NAME, get_required_xp
 from router import router
 
 # --- SENTRY & REDIS INITIALIZATION ---
@@ -235,6 +235,98 @@ def hardcore_owner_only():
 async def on_ready():
     await LogManager.send_log(bot.get_guild(GUILD_ID), "SYSTEM", "INFO", f"Netrunner Dashboard bot session initialized. User: {bot.user}")
 
+async def process_rp_xp(message: discord.Message):
+    if message.author.bot or not message.guild:
+        return
+
+    channel_id = message.channel.id
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT is_rp_enabled FROM rp_channels WHERE channel_id = ?", (channel_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row or row[0] != 1:
+                return
+
+        async with db.execute("SELECT level, xp, daily_rp_xp, last_xp_date, sp_points FROM rp_players WHERE user_id = ?", (message.author.id,)) as cursor:
+            player = await cursor.fetchone()
+            if not player:
+                return
+
+        level, xp, daily_rp_xp, last_xp_date, sp_points = player
+        level = level or 1
+        xp = xp or 0.0
+        daily_rp_xp = daily_rp_xp or 0.0
+
+        if level >= 20:
+            return
+
+        today_str = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+        if last_xp_date != today_str:
+            daily_rp_xp = 0.0
+            last_xp_date = today_str
+
+        if daily_rp_xp >= 50.0:
+            return
+
+        length = len(message.content)
+        is_nitro = message.author.premium_since is not None
+
+        xp_gain = 0
+        if is_nitro and length >= 2500:
+            val = length // 100
+            xp_gain = min(35, max(25, val))
+        elif length >= 500:
+            val = length // 100
+            xp_gain = min(15, max(5, val))
+        else:
+            xp_gain = 0
+
+        if xp_gain <= 0:
+            return
+
+        remaining_daily = 50.0 - daily_rp_xp
+        if xp_gain > remaining_daily:
+            xp_gain = remaining_daily
+
+        if xp_gain <= 0:
+            return
+
+        new_daily_xp = daily_rp_xp + xp_gain
+        new_xp = xp + xp_gain
+
+        leveled_up = False
+        new_level = level
+        added_sp = 0
+
+        while new_level < 20:
+            req_xp = get_required_xp(new_level + 1)
+            if new_xp >= req_xp:
+                new_xp -= req_xp
+                new_level += 1
+                added_sp += 3
+                leveled_up = True
+            else:
+                break
+
+        new_sp = (sp_points or 9) + added_sp
+
+        await db.execute(
+            "UPDATE rp_players SET level = ?, xp = ?, daily_rp_xp = ?, last_xp_date = ?, sp_points = ? WHERE user_id = ?",
+            (new_level, new_xp, new_daily_xp, last_xp_date, new_sp, message.author.id)
+        )
+        await db.commit()
+
+        if leveled_up:
+            try:
+                embed = discord.Embed(
+                    title="[SYSTEM] // SEVİYE ATLAMA RAPORU",
+                    description=f"🎉 Tebrikler {message.author.mention}! Karakteriniz **{new_level}. Seviye**'ye ulaştı!\n\n⚡ Kazanılan SP: **+{added_sp} SP** (Toplam SP: {new_sp})",
+                    color=discord.Color(0x00F0FF),
+                    timestamp=discord.utils.utcnow()
+                )
+                await message.channel.send(embed=embed)
+            except Exception:
+                pass
+
 @bot.event
 async def on_message(message: discord.Message):
     if GLOBAL_SHUTDOWN:
@@ -249,6 +341,7 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
+    await process_rp_xp(message)
     await bot.process_commands(message)
 
 @bot.listen("on_interaction")
@@ -729,6 +822,63 @@ async def start_hack_session(interaction: discord.Interaction, target_id: int, d
         pass
 
 # --- DISCORD SLASH COMMANDS ---
+@bot.tree.command(name="help", description="Aktif bir yetkiliyi yardıma çağır.")
+async def help_command(interaction: discord.Interaction):
+    admin_pool = [973745249543401482, 671439881909698560, 1152921256837001288, 957268410662805564]
+    chosen_admin_id = random.choice(admin_pool)
+    msg = f"<@{chosen_admin_id}>, {interaction.user.mention} kişisinin bir konuda yardıma ihtiyacı var gibi duruyor. Hadi ona yardım edelim!"
+    await interaction.response.send_message(msg, ephemeral=False)
+
+@bot.tree.command(name="bot", description="Bot ve sistem hakkında detaylı bilgi al.")
+@app_commands.describe(islem="Bilgi türü (örn: bilgi)")
+async def bot_info(interaction: discord.Interaction, islem: str = "bilgi"):
+    embed = discord.Embed(
+        title="[SYSTEM] // TSUI-BOT CYBERPUNK STAT & MANAGEMENT SYSTEM",
+        description="Bu bot **Cyberpunk 2077** evreninden esinlenilmiş, gelişmiş bir rol içi stat, seviye, ekonomi, implant, hack ve web yönetim sistemidir.",
+        color=discord.Color(0x00F0FF),
+        timestamp=discord.utils.utcnow()
+    )
+    embed.add_field(
+        name="🎮 Discord Slash Komutları",
+        value=(
+            "• `/kayıt <isim> <sınıf>` - Yeni Cyberpunk karakteri oluşturur.\n"
+            "• `/profil [üye]` - Karakter profilini, statlarını, seviye/XP durumunu, envanterini ve implantlarını gösterir.\n"
+            "• `/market` - Karaborsa pazarından eşya satın almanızı sağlar.\n"
+            "• `/roll-baslangic` - Başlangıç statları ve bakiye zarı atar.\n"
+            "• `/roll-tolerans` - Sinirsel tolerans kapasitesini artırma zarı atar.\n"
+            "• `/death_gambling` - %10 kazanç veya %50 kayıp & kalıcı damga içeren ölüm kumarı.\n"
+            "• `/hack` - Matrix kod çözme mini oyunu.\n"
+            "• `/help` - Rastgele bir yetkiliyi yardıma çağırır.\n"
+            "• `/bot bilgi` - Bot ve web özellikleri hakkında rehber sunar.\n"
+            "• `/ping` / `/pong` - Gecikme sürelerini ölçer.\n"
+            "• *Admin Komutları:* `/karakter-lore-ekle`, `/sp-yonet`, `/implant-ekle`, `/ekonomi-yonet`, `/yetkili-rol-ekle`, `/yetkili-rol-cikar`, `/admin-panel`"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        name="🌐 Web Paneli & Arka Plan Özellikleri",
+        value=(
+            "• **Discord OAuth2 Giriş:** Yetkili doğrulaması ile güvenli web erişimi.\n"
+            "• **Heatmap & Analitik:** 24 saatlik aktivite yoğunluğu ve kanal istatistikleri (Chart.js + Redis).\n"
+            "• **Canlı Log Yayını:** WebSocket tabanlı anlık sistem, ekonomi ve RP logları.\n"
+            "• **İnaktivite Denetimi:** Otomatik 72 saatlik inaktif operatif denetim döngüsü.\n"
+            "• **Katalog Yönetimi:** Market eşyaları ve implant yönetimi."
+        ),
+        inline=False
+    )
+    embed.set_footer(text="TSUI-BOT // SECURE GRID INFRASTRUCTURE")
+    await interaction.response.send_message(embed=embed, ephemeral=False)
+
+@bot.tree.command(name="ping", description="Bot gecikmesini ölç.")
+async def ping_command(interaction: discord.Interaction):
+    latency = round(bot.latency * 1000)
+    await interaction.response.send_message(f"pong! ({latency}ms)", ephemeral=False)
+
+@bot.tree.command(name="pong", description="Bot gecikmesini ölç.")
+async def pong_command(interaction: discord.Interaction):
+    latency = round(bot.latency * 1000)
+    await interaction.response.send_message(f"pong! ({latency}ms)", ephemeral=False)
+
 @bot.tree.command(name="admin-panel", description="Secure web admin panel access link.")
 @authorized_only()
 async def admin_panel(interaction: discord.Interaction):
@@ -770,7 +920,7 @@ async def profil(interaction: discord.Interaction, member: discord.Member = None
     await interaction.response.defer(ephemeral=False)
     target = member or interaction.user
     async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT character_name, class_name, balance, salary, living_cost, popularity, max_tolerance, current_tolerance, sp_points, tolerance_boost, has_gambler_mark FROM rp_players WHERE user_id = ?", (target.id,)) as cursor:
+        async with db.execute("SELECT character_name, class_name, balance, salary, living_cost, popularity, max_tolerance, current_tolerance, sp_points, tolerance_boost, has_gambler_mark, level, xp FROM rp_players WHERE user_id = ?", (target.id,)) as cursor:
             row = await cursor.fetchone()
         if not row:
             await interaction.followup.send(f"{target.mention} için kayıtlı bir karakter bulunamadı.", ephemeral=False)
@@ -782,9 +932,13 @@ async def profil(interaction: discord.Interaction, member: discord.Member = None
         async with db.execute("SELECT body, reflex, technic, intelligence, cool FROM rp_stats WHERE user_id = ?", (target.id,)) as stat_cursor:
             stat_row = await stat_cursor.fetchone()
 
-    s_name, c_name, bal, sal, live, pop, max_tol, cur_tol, sp, tol_boost, has_mark = row
+    s_name, c_name, bal, sal, live, pop, max_tol, cur_tol, sp, tol_boost, has_mark, level, xp = row
     tol_boost = tol_boost or 0.0
+    level = level or 1
+    xp = xp or 0.0
     stats = stat_row or (10, 10, 10, 10, 10)
+    req_xp = get_required_xp(level + 1) if level < 20 else 0
+    xp_str = f"{xp:.1f} / {req_xp}" if level < 20 else f"{xp:.1f} (MAX)"
 
     embed = discord.Embed(
         title=f"[DATABASE] // OPERATIVE PROFILE: {s_name}",
@@ -794,6 +948,7 @@ async def profil(interaction: discord.Interaction, member: discord.Member = None
         embed.add_field(name="⚠️ ÖZEL UNVAN", value="**☠️ Beceriksiz Kumarbaz Damgası**", inline=False)
 
     embed.add_field(name="Sınıf", value=c_name, inline=True)
+    embed.add_field(name="Seviye & XP", value=f"Seviye **{level}** | XP: `{xp_str}`", inline=True)
     embed.add_field(name="Bakiye", value=f"€${bal:.2f}", inline=True)
     embed.add_field(name="Net Gelir", value=f"€${(sal or 100) - (live or 30)}", inline=True)
     embed.add_field(name="SP Puanı", value=f"{sp} SP", inline=True)

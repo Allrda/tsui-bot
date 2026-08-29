@@ -5,6 +5,11 @@ import hashlib
 
 DB_NAME = "text_rp_database.db"
 
+def get_required_xp(level: int) -> int:
+    if level <= 1:
+        return 100
+    return int(round(100 * (1.15 ** (level - 2))))
+
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("""
@@ -20,14 +25,18 @@ async def init_db():
                 current_tolerance REAL DEFAULT 0,
                 roll_baslangic_done INTEGER DEFAULT 0,
                 roll_tolerans_done INTEGER DEFAULT 0,
-                sp_points REAL DEFAULT 0,
+                sp_points INTEGER DEFAULT 9,
                 stats TEXT DEFAULT '{}',
                 traits TEXT DEFAULT '{}',
                 inventory TEXT DEFAULT '{}',
                 lore TEXT,
                 image_url TEXT,
                 has_gambler_mark INTEGER DEFAULT 0,
-                has_used_tolerance INTEGER DEFAULT 0
+                has_used_tolerance INTEGER DEFAULT 0,
+                level INTEGER DEFAULT 1,
+                xp REAL DEFAULT 0,
+                daily_rp_xp REAL DEFAULT 0,
+                last_xp_date TEXT
             )
         """)
         await db.execute("""
@@ -184,6 +193,22 @@ async def init_db():
             pass
         try:
             await db.execute("ALTER TABLE rp_players ADD COLUMN has_used_tolerance INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE rp_players ADD COLUMN level INTEGER DEFAULT 1")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE rp_players ADD COLUMN xp REAL DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE rp_players ADD COLUMN daily_rp_xp REAL DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE rp_players ADD COLUMN last_xp_date TEXT")
         except Exception:
             pass
         await db.commit()

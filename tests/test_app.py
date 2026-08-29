@@ -5,7 +5,7 @@ import aiosqlite
 import jwt
 from fastapi.testclient import TestClient
 
-from database import init_db, DB_NAME
+from database import init_db, DB_NAME, get_required_xp
 from bot import generate_tolerance_bar, generate_node_code, app, JWT_SECRET_KEY, ACTIVE_SESSIONS
 
 client = TestClient(app)
@@ -67,3 +67,9 @@ def test_authenticated_access():
     # Should render dashboard or redirect if check_auth passes
     # Note: check_auth allows valid JWT decode
     assert response.status_code in [200, 303]
+
+def test_get_required_xp():
+    assert get_required_xp(1) == 100
+    assert get_required_xp(2) == 100
+    assert get_required_xp(3) == 115
+    assert get_required_xp(13) == 465
