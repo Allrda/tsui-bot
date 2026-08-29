@@ -342,9 +342,9 @@ def generate_tolerance_bar(current: float, max_tol: float, boost: float = 0.0) -
     return f"[(  {bar}  )] %{current:.1f} / %{effective_max:.1f} (Boost: +%{boost:.1f})"
 
 class StatDistModal(discord.ui.Modal, title="STAT DAĞITIM MERKEZİ"):
-    strength = discord.ui.TextInput(label="Strength (Kuvvet)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
-    reflexes = discord.ui.TextInput(label="Reflexes (Refleks)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
-    technical = discord.ui.TextInput(label="Technical (Teknik)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
+    body = discord.ui.TextInput(label="Body (Bünye)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
+    reflex = discord.ui.TextInput(label="Reflex (Refleks)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
+    technic = discord.ui.TextInput(label="Technic (Teknik)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
     intelligence = discord.ui.TextInput(label="Intelligence (Zeka)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
     cool = discord.ui.TextInput(label="Cool (Soğukkanlılık)", placeholder="Eklenecek SP miktarını girin", default="0", max_length=3)
 
@@ -352,12 +352,12 @@ class StatDistModal(discord.ui.Modal, title="STAT DAĞITIM MERKEZİ"):
         await interaction.response.defer(ephemeral=False)
         user_id = interaction.user.id
         try:
-            s_add = int(self.strength.value or 0)
-            r_add = int(self.reflexes.value or 0)
-            t_add = int(self.technical.value or 0)
+            b_add = int(self.body.value or 0)
+            r_add = int(self.reflex.value or 0)
+            t_add = int(self.technic.value or 0)
             i_add = int(self.intelligence.value or 0)
             c_add = int(self.cool.value or 0)
-            total_cost = s_add + r_add + t_add + i_add + c_add
+            total_cost = b_add + r_add + t_add + i_add + c_add
             if total_cost <= 0:
                 await interaction.followup.send("Lütfen dağıtmak için geçerli bir SP miktarı girin.", ephemeral=False)
                 return
@@ -371,11 +371,11 @@ class StatDistModal(discord.ui.Modal, title="STAT DAĞITIM MERKEZİ"):
 
                 await db.execute("UPDATE rp_players SET sp_points = sp_points - ? WHERE user_id = ?", (total_cost, user_id))
                 await db.execute("""
-                    INSERT INTO rp_stats (user_id, strength, reflexes, technical, intelligence, cool)
+                    INSERT INTO rp_stats (user_id, body, reflex, technic, intelligence, cool)
                     VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(user_id) DO UPDATE SET
-                    strength = strength + ?, reflexes = reflexes + ?, technical = technical + ?, intelligence = intelligence + ?, cool = cool + ?
-                """, (user_id, s_add, r_add, t_add, i_add, c_add, s_add, r_add, t_add, i_add, c_add))
+                    body = body + ?, reflex = reflex + ?, technic = technic + ?, intelligence = intelligence + ?, cool = cool + ?
+                """, (user_id, b_add, r_add, t_add, i_add, c_add, b_add, r_add, t_add, i_add, c_add))
                 await db.commit()
 
             await interaction.followup.send(f"Stat puanları başarıyla dağıtıldı! Harcanan SP: **{total_cost} SP**", ephemeral=False)
@@ -537,17 +537,17 @@ class DeathGambleStage2View(discord.ui.View):
                     else:
                         await db.execute("UPDATE rp_inventory SET quantity = ? WHERE id = ?", (new_qty, inv_id))
 
-                async with db.execute("SELECT strength, reflexes, technical, intelligence, cool FROM rp_stats WHERE user_id = ?", (user_id,)) as cursor:
+                async with db.execute("SELECT body, reflex, technic, intelligence, cool FROM rp_stats WHERE user_id = ?", (user_id,)) as cursor:
                     stat_row = await cursor.fetchone()
                 if stat_row:
-                    s_str = max(1, int(stat_row[0] * 0.5))
+                    s_body = max(1, int(stat_row[0] * 0.5))
                     s_ref = max(1, int(stat_row[1] * 0.5))
                     s_tech = max(1, int(stat_row[2] * 0.5))
                     s_int = max(1, int(stat_row[3] * 0.5))
                     s_cool = max(1, int(stat_row[4] * 0.5))
-                    await db.execute("UPDATE rp_stats SET strength = ?, reflexes = ?, technical = ?, intelligence = ?, cool = ? WHERE user_id = ?", (s_str, s_ref, s_tech, s_int, s_cool, user_id))
+                    await db.execute("UPDATE rp_stats SET body = ?, reflex = ?, technic = ?, intelligence = ?, cool = ? WHERE user_id = ?", (s_body, s_ref, s_tech, s_int, s_cool, user_id))
                 else:
-                    await db.execute("INSERT OR REPLACE INTO rp_stats (user_id, strength, reflexes, technical, intelligence, cool) VALUES (?, 5, 5, 5, 5, 5)", (user_id,))
+                    await db.execute("INSERT OR REPLACE INTO rp_stats (user_id, body, reflex, technic, intelligence, cool) VALUES (?, 5, 5, 5, 5, 5)", (user_id,))
 
                 await db.execute("UPDATE rp_players SET balance = ?, max_tolerance = ?, current_tolerance = ?, tolerance_boost = ?, has_gambler_mark = 1 WHERE user_id = ?", (new_balance, new_max_tol, new_cur_tol, new_boost, user_id))
                 await db.commit()
@@ -779,7 +779,7 @@ async def profil(interaction: discord.Interaction, member: discord.Member = None
         async with db.execute("SELECT slot_region, implant_name, tolerance_cost FROM rp_implants WHERE user_id = ?", (target.id,)) as imp_cursor:
             implants = await imp_cursor.fetchall()
             
-        async with db.execute("SELECT strength, reflexes, technical, intelligence, cool FROM rp_stats WHERE user_id = ?", (target.id,)) as stat_cursor:
+        async with db.execute("SELECT body, reflex, technic, intelligence, cool FROM rp_stats WHERE user_id = ?", (target.id,)) as stat_cursor:
             stat_row = await stat_cursor.fetchone()
 
     s_name, c_name, bal, sal, live, pop, max_tol, cur_tol, sp, tol_boost, has_mark = row
@@ -800,7 +800,7 @@ async def profil(interaction: discord.Interaction, member: discord.Member = None
     embed.add_field(name="Popülarite", value=str(pop), inline=True)
     embed.add_field(name="Sinirsel Tolerans", value=generate_tolerance_bar(cur_tol, max_tol, tol_boost), inline=False)
     
-    stats_text = f"💪 Str: {stats[0]} | ⚡ Ref: {stats[1]} | 🔧 Tech: {stats[2]} | 🧠 Int: {stats[3]} | 😎 Cool: {stats[4]}"
+    stats_text = f"💪 Body: {stats[0]} | ⚡ Reflex: {stats[1]} | 😎 Cool: {stats[4]} | 🧠 Intelligence: {stats[3]} | 🔧 Technic: {stats[2]}"
     embed.add_field(name="Stat Dağılımı", value=stats_text, inline=False)
     
     imp_str = "\n".join([f"• **{imp[1]}** [{imp[0]}] (Cost: %{imp[2]})" for imp in implants]) if implants else "Yok"

@@ -156,13 +156,13 @@ async def init_db():
                 details TEXT
             )
         """)
-        # 5. User Stats (Strength, Reflexes, Technical, Intelligence, Cool)
+        # 5. User Stats (Body, Reflex, Technic, Intelligence, Cool)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS rp_stats (
                 user_id INTEGER PRIMARY KEY,
-                strength INTEGER DEFAULT 10,
-                reflexes INTEGER DEFAULT 10,
-                technical INTEGER DEFAULT 10,
+                body INTEGER DEFAULT 10,
+                reflex INTEGER DEFAULT 10,
+                technic INTEGER DEFAULT 10,
                 intelligence INTEGER DEFAULT 10,
                 cool INTEGER DEFAULT 10
             )
