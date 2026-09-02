@@ -7,6 +7,8 @@ import hashlib
 import subprocess
 import base64
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import string
 import discord
 from discord import app_commands
@@ -48,7 +50,7 @@ DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://89.144.20.122:8
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "cyberpunk_secret_jwt_key_999")
 
 # --- 1. TEMEL DEĞİŞKENLER VE KONFİGÜRASYON ---
-BOT_TOKEN = "BURAYA_TOKENINIZI_YAZIN"
+BOT_TOKEN = os.getenv("BOT_TOKEN", "BURAYA_TOKENINIZI_YAZIN")
 GUILD_ID = 1386773654876197005
 LOG_CHANNEL_ID = 1534697839643463770
 HARDCORE_OWNER_ID = 973745249543401482
