@@ -1096,78 +1096,90 @@ async def kayit(interaction: discord.Interaction, character_name: str, class_nam
 @app_commands.describe(member="Hedef kullanıcı (Opsiyonel)")
 async def profil(interaction: discord.Interaction, member: discord.Member = None):
     await interaction.response.defer(ephemeral=False)
-    target = member or interaction.user
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT character_name, class_name, balance, salary, living_cost, popularity, max_tolerance, current_tolerance, sp_points, tolerance_boost, has_gambler_mark, level, xp FROM rp_players WHERE user_id = ?", (target.id,)) as cursor:
-            row = await cursor.fetchone()
-        if not row:
-            await interaction.followup.send(f"{target.mention} için kayıtlı bir karakter bulunamadı.", ephemeral=False)
-            return
-        
-        async with db.execute("SELECT slot_region, implant_name, tolerance_cost FROM rp_implants WHERE user_id = ?", (target.id,)) as imp_cursor:
-            implants = await imp_cursor.fetchall()
+    try:
+        target = member or interaction.user
+        async with aiosqlite.connect(DB_NAME) as db:
+            async with db.execute("SELECT character_name, class_name, balance, salary, living_cost, popularity, max_tolerance, current_tolerance, sp_points, tolerance_boost, has_gambler_mark, level, xp FROM rp_players WHERE user_id = ?", (target.id,)) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                await interaction.followup.send(f"{target.mention} için kayıtlı bir karakter bulunamadı.", ephemeral=False)
+                return
             
-        async with db.execute("SELECT body, reflex, technic, intelligence, cool FROM rp_stats WHERE user_id = ?", (target.id,)) as stat_cursor:
-            stat_row = await stat_cursor.fetchone()
+            async with db.execute("SELECT slot_region, implant_name, tolerance_cost FROM rp_implants WHERE user_id = ?", (target.id,)) as imp_cursor:
+                implants = await imp_cursor.fetchall()
+                
+            async with db.execute("SELECT body, reflex, technic, intelligence, cool FROM rp_stats WHERE user_id = ?", (target.id,)) as stat_cursor:
+                stat_row = await stat_cursor.fetchone()
 
-    s_name, c_name, bal, sal, live, pop, max_tol, cur_tol, sp, tol_boost, has_mark, level, xp = row
-    tol_boost = tol_boost or 0.0
-    level = level or 1
-    xp = xp or 0.0
-    stats = stat_row or (10, 10, 10, 10, 10)
-    req_xp = get_required_xp(level + 1) if level < 20 else 0
-    xp_str = f"{xp:.1f} / {req_xp}" if level < 20 else f"{xp:.1f} (MAX)"
+        s_name, c_name, bal, sal, live, pop, max_tol, cur_tol, sp, tol_boost, has_mark, level, xp = row
+        tol_boost = tol_boost or 0.0
+        level = level or 1
+        xp = xp or 0.0
+        stats = stat_row or (10, 10, 10, 10, 10)
+        req_xp = get_required_xp(level + 1) if level < 20 else 0
+        xp_str = f"{xp:.1f} / {req_xp}" if level < 20 else f"{xp:.1f} (MAX)"
 
-    embed = discord.Embed(
-        title=f"[DATABASE] // OPERATIVE PROFILE: {s_name}",
-        color=discord.Color(0x00F0FF)
-    )
-    if has_mark:
-        embed.add_field(name="⚠️ ÖZEL UNVAN", value="**☠️ Beceriksiz Kumarbaz Damgası**", inline=False)
+        embed = discord.Embed(
+            title=f"[DATABASE] // OPERATIVE PROFILE: {s_name}",
+            color=discord.Color(0x00F0FF)
+        )
+        if has_mark:
+            embed.add_field(name="⚠️ ÖZEL UNVAN", value="**☠️ Beceriksiz Kumarbaz Damgası**", inline=False)
 
-    embed.add_field(name="Sınıf", value=c_name, inline=True)
-    embed.add_field(name="Seviye & XP", value=f"Seviye **{level}** | XP: `{xp_str}`", inline=True)
-    embed.add_field(name="Bakiye", value=f"€${bal:.2f}", inline=True)
-    embed.add_field(name="Net Gelir", value=f"€${(sal or 100) - (live or 30)}", inline=True)
-    embed.add_field(name="SP Puanı", value=f"{sp} SP", inline=True)
-    embed.add_field(name="Popülarite", value=str(pop), inline=True)
-    embed.add_field(name="Sinirsel Tolerans", value=generate_tolerance_bar(cur_tol, max_tol, tol_boost), inline=False)
-    
-    stats_text = f"💪 Body: {stats[0]} | ⚡ Reflex: {stats[1]} | 😎 Cool: {stats[4]} | 🧠 Intelligence: {stats[3]} | 🔧 Technic: {stats[2]}"
-    embed.add_field(name="Stat Dağılımı", value=stats_text, inline=False)
-    
-    imp_str = "\n".join([f"• **{imp[1]}** [{imp[0]}] (Cost: %{imp[2]})" for imp in implants]) if implants else "Yok"
-    embed.add_field(name="İmplantlar", value=imp_str, inline=False)
-    
-    view = ProfileView(target.id)
-    await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+        embed.add_field(name="Sınıf", value=c_name, inline=True)
+        embed.add_field(name="Seviye & XP", value=f"Seviye **{level}** | XP: `{xp_str}`", inline=True)
+        embed.add_field(name="Bakiye", value=f"€${bal:.2f}", inline=True)
+        embed.add_field(name="Net Gelir", value=f"€${(sal or 100) - (live or 30)}", inline=True)
+        embed.add_field(name="SP Puanı", value=f"{sp} SP", inline=True)
+        embed.add_field(name="Popülarite", value=str(pop), inline=True)
+        embed.add_field(name="Sinirsel Tolerans", value=generate_tolerance_bar(cur_tol, max_tol, tol_boost), inline=False)
+        
+        stats_text = f"💪 Body: {stats[0]} | ⚡ Reflex: {stats[1]} | 😎 Cool: {stats[4]} | 🧠 Intelligence: {stats[3]} | 🔧 Technic: {stats[2]}"
+        embed.add_field(name="Stat Dağılımı", value=stats_text, inline=False)
+        
+        imp_str = "\n".join([f"• **{imp[1]}** [{imp[0]}] (Cost: %{imp[2]})" for imp in implants]) if implants else "Yok"
+        embed.add_field(name="İmplantlar", value=imp_str, inline=False)
+        
+        view = ProfileView(target.id)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+    except Exception as e:
+        try:
+            await interaction.followup.send(f"⚠️ Profil yüklenirken hata oluştu: {e}", ephemeral=True)
+        except Exception:
+            pass
 
 @bot.tree.command(name="market", description="Metropolis Karaborsa ve Ekipman Pazarı.")
 async def market(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=False)
-    user_id = interaction.user.id
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT balance FROM rp_players WHERE user_id = ?", (user_id,)) as cursor:
-            p_row = await cursor.fetchone()
-        balance = p_row[0] if p_row else 0.0
+    try:
+        user_id = interaction.user.id
+        async with aiosqlite.connect(DB_NAME) as db:
+            async with db.execute("SELECT balance FROM rp_players WHERE user_id = ?", (user_id,)) as cursor:
+                p_row = await cursor.fetchone()
+            balance = p_row[0] if p_row else 0.0
 
-        async with db.execute("SELECT id, item_name, description, price, category, stock FROM market_items WHERE stock > 0") as cursor:
-            items = await cursor.fetchall()
+            async with db.execute("SELECT id, item_name, description, price, category, stock FROM market_items WHERE stock > 0") as cursor:
+                items = await cursor.fetchall()
 
-    embed = discord.Embed(
-        title="[MARKET] // METROPOLIS BLACK MARKET CATALOG",
-        description=f"Güncel Bakiyeniz: **€${balance:.2f}**\nAşağıdaki menüden dilediğiniz ekipmanı seçerek anında satın alabilirsiniz.",
-        color=discord.Color(0xFFE600)
-    )
-    if items:
-        catalog_desc = "\n".join([f"• **{it[1]}** - €${it[3]:.2f} | Stok: {it[5]} | *{it[2]}*" for it in items[:10]])
-        embed.add_field(name="Öne Çıkan Ürünler", value=catalog_desc, inline=False)
-        view = MarketView(items)
-    else:
-        embed.add_field(name="Ürün Kataloğu", value="Şu anda satışta ürün bulunmuyor.", inline=False)
-        view = None
+        embed = discord.Embed(
+            title="[MARKET] // METROPOLIS BLACK MARKET CATALOG",
+            description=f"Güncel Bakiyeniz: **€${balance:.2f}**\nAşağıdaki menüden dilediğiniz ekipmanı seçerek anında satın alabilirsiniz.",
+            color=discord.Color(0xFFE600)
+        )
+        if items:
+            catalog_desc = "\n".join([f"• **{it[1]}** - €${it[3]:.2f} | Stok: {it[5]} | *{it[2]}*" for it in items[:10]])
+            embed.add_field(name="Öne Çıkan Ürünler", value=catalog_desc, inline=False)
+            view = MarketView(items)
+        else:
+            embed.add_field(name="Ürün Kataloğu", value="Şu anda satışta ürün bulunmuyor.", inline=False)
+            view = None
 
-    await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+    except Exception as e:
+        try:
+            await interaction.followup.send(f"⚠️ Market yüklenirken hata oluştu: {e}", ephemeral=True)
+        except Exception:
+            pass
 
 @bot.tree.command(name="roll-baslangic", description="Karakter başlangıç statları için zar at.")
 async def roll_baslangic(interaction: discord.Interaction):
