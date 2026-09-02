@@ -75,6 +75,7 @@ class CyberpunkBot(commands.Bot):
         await init_db()
         await self.load_extension("bot_cog")
         log_pruning_task.start()
+        daily_report_loop.start()
         
         try:
             guild = discord.Object(id=GUILD_ID)
@@ -254,7 +255,16 @@ async def on_ready():
     try:
         owner = bot.get_user(HARDCORE_OWNER_ID) or await bot.fetch_user(HARDCORE_OWNER_ID)
         if owner:
-            await owner.send("🤖 TSUI Cyberbot başarıyla başlatıldı ve aktif durumda.")
+            embed = discord.Embed(
+                title="[SYSTEM ARCHITECTURE] // CORE INITIALIZED",
+                description="🤖 **TSUI Cyberbot başarıyla başlatıldı ve tüm sistemler aktif durumda.**",
+                color=discord.Color(0x00F0FF),
+                timestamp=discord.utils.utcnow()
+            )
+            embed.add_field(name="STATUS", value="🟢 Online & Synced", inline=True)
+            embed.add_field(name="SECURITY", value="🔒 Netrunner Protocols Active", inline=True)
+            embed.set_footer(text="TSUI SECURE GRID // HARDCORE OWNER NOTIFICATION")
+            await owner.send(embed=embed)
     except Exception as e:
         print(f"Failed to send startup DM to hardcore owner: {e}")
 
@@ -273,6 +283,151 @@ async def log_pruning_task():
 async def before_log_pruning():
     await bot.wait_until_ready()
 
+class DailyLeaderboardView(discord.ui.View):
+    def __init__(self, data: list, page: int = 0):
+        super().__init__(timeout=86400)
+        self.data = data
+        self.page = page
+        self.per_page = 5
+        self.max_pages = max(1, (len(data) + self.per_page - 1) // self.per_page)
+        self.update_buttons()
+
+    def update_buttons(self):
+        self.prev_button.disabled = self.page <= 0
+        self.next_button.disabled = self.page >= self.max_pages - 1
+
+    def build_embed(self):
+        now = datetime.datetime.utcnow()
+        embed = discord.Embed(
+            title="[DAILY MATRIX REPORT] // TÜM OPERATİFLER SIRALAMASI",
+            description=f"Sunucudaki tüm operatiflerin güncel RP aktivite dökümü (Sayfa {self.page + 1}/{self.max_pages}):",
+            color=discord.Color(0x00F0FF),
+            timestamp=now
+        )
+        start_idx = self.page * self.per_page
+        end_idx = start_idx + self.per_page
+        page_items = self.data[start_idx:end_idx]
+
+        lines = []
+        for idx, entry in enumerate(page_items, start_idx + 1):
+            lines.append(f"`#{idx}` **{entry['display_name']}** — Kelime: `{entry['word_count']:,}` | Harf: `{entry['char_count']:,}` | Mesaj: `{entry['message_count']}`")
+
+        embed.add_field(name="📋 AKTİVİTE LİSTESİ", value="\n".join(lines) if lines else "Kayıt bulunmuyor.", inline=False)
+        embed.set_footer(text=f"TSUI-BOT // SAYFA {self.page + 1} / {self.max_pages}")
+        return embed
+
+    @discord.ui.button(label="◀ Önceki", style=discord.ButtonStyle.primary)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        if self.page > 0:
+            self.page -= 1
+            self.update_buttons()
+            await interaction.message.edit(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="Sonraki ▶", style=discord.ButtonStyle.primary)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        if self.page < self.max_pages - 1:
+            self.page += 1
+            self.update_buttons()
+            await interaction.message.edit(embed=self.build_embed(), view=self)
+
+@tasks.loop(minutes=1)
+async def daily_report_loop():
+    try:
+        now = datetime.datetime.utcnow()
+        today_str = now.strftime("%Y-%m-%d")
+        guild = bot.get_guild(GUILD_ID)
+        if not guild:
+            try:
+                guild = await bot.fetch_guild(GUILD_ID)
+            except Exception:
+                return
+
+        log_channel = guild.get_channel(LOG_CHANNEL_ID)
+        if not log_channel:
+            try:
+                log_channel = await guild.fetch_channel(LOG_CHANNEL_ID)
+            except Exception:
+                pass
+
+        async with aiosqlite.connect(DB_NAME) as db:
+            if now.hour == 0 and now.minute == 0:
+                async with db.execute("SELECT value FROM bot_meta WHERE key = ?", (f"daily_start_{today_str}",)) as cursor:
+                    start_sent = await cursor.fetchone()
+                if not start_sent:
+                    await db.execute("INSERT OR REPLACE INTO bot_meta (key, value) VALUES (?, '1')", (f"daily_start_{today_str}",))
+                    await db.commit()
+                    if log_channel:
+                        try:
+                            await log_channel.send("🤖 **Yeni bir gün başlıyor günlük rp miktarları veritabanına atıldı.**")
+                        except Exception:
+                            pass
+
+            if now.hour == 23 and now.minute == 59:
+                async with db.execute("SELECT value FROM bot_meta WHERE key = ?", (f"daily_summary_{today_str}",)) as cursor:
+                    summary_sent = await cursor.fetchone()
+                if not summary_sent:
+                    await db.execute("INSERT OR REPLACE INTO bot_meta (key, value) VALUES (?, '1')", (f"daily_summary_{today_str}",))
+                    await db.commit()
+
+                    async with db.execute("SELECT SUM(message_count), SUM(word_count), SUM(char_count) FROM daily_rp_activity WHERE date_str = ?", (today_str,)) as cursor:
+                        totals = await cursor.fetchone()
+                    tot_msg = totals[0] or 0
+                    tot_word = totals[1] or 0
+                    tot_char = totals[2] or 0
+
+                    async with db.execute("SELECT user_id, message_count, word_count, char_count FROM daily_rp_activity WHERE date_str = ? ORDER BY word_count DESC", (today_str,)) as cursor:
+                        user_rows = await cursor.fetchall()
+
+                    if log_channel:
+                        try:
+                            summary_text = f"Bugünlük bu kadar... Bugün içerisinde {tot_msg} tane mesaj, {tot_word:,} tane kelime ve {tot_char:,} tane harf kullanılmış. Vay be! Bugünün sıralaması şu şekilde:"
+                            
+                            leaderboard_data = []
+                            for r in user_rows:
+                                u_id, m_cnt, w_cnt, c_cnt = r
+                                member = guild.get_member(u_id)
+                                if not member:
+                                    try:
+                                        member = await guild.fetch_member(u_id)
+                                    except Exception:
+                                        pass
+                                display_name = member.display_name if member else f"Operative #{u_id}"
+                                leaderboard_data.append({
+                                    "display_name": display_name,
+                                    "message_count": m_cnt,
+                                    "word_count": w_cnt,
+                                    "char_count": c_cnt
+                                })
+
+                            embed = discord.Embed(
+                                title="[DAILY MATRIX REPORT] // GÜNLÜK RP ÖZETİ & SIRALAMASI",
+                                description=summary_text,
+                                color=discord.Color(0xFFE600),
+                                timestamp=now
+                            )
+
+                            top_5 = leaderboard_data[:5]
+                            top_5_lines = []
+                            for idx, entry in enumerate(top_5, 1):
+                                medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"`#{idx}`"
+                                top_5_lines.append(f"{medal} **{entry['display_name']}** — Kelime: `{entry['word_count']:,}` | Harf: `{entry['char_count']:,}` | Mesaj: `{entry['message_count']}`")
+
+                            embed.add_field(name="🏆 TOP 5 OPERATİF", value="\n".join(top_5_lines) if top_5_lines else "Bugün RP kanalında aktiflik olmadı.", inline=False)
+                            embed.set_footer(text="TSUI-BOT // NETRUNNER AUTOMATED DAILY RECAP")
+
+                            view = DailyLeaderboardView(leaderboard_data)
+                            await log_channel.send(content="📊 **GÜNLÜK RP RAPORU YAYINLANDI**", embed=embed, view=view)
+                        except Exception as e:
+                            print(f"Daily summary send error: {e}")
+    except Exception as e:
+        print(f"Daily report loop error: {e}")
+
+@daily_report_loop.before_loop
+async def before_daily_report():
+    await bot.wait_until_ready()
+
 async def process_rp_xp(message: discord.Message):
     if message.author.bot or not message.guild:
         return
@@ -283,6 +438,21 @@ async def process_rp_xp(message: discord.Message):
             row = await cursor.fetchone()
             if not row or row[0] != 1:
                 return
+
+        content = message.content or ""
+        word_count = len(content.split())
+        char_count = len(content)
+        today_str = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+        await db.execute("""
+            INSERT INTO daily_rp_activity (user_id, date_str, message_count, word_count, char_count)
+            VALUES (?, ?, 1, ?, ?)
+            ON CONFLICT(user_id, date_str) DO UPDATE SET
+            message_count = message_count + 1,
+            word_count = word_count + ?,
+            char_count = char_count + ?
+        """, (message.author.id, today_str, word_count, char_count, word_count, char_count))
+        await db.commit()
 
         async with db.execute("SELECT level, xp, daily_rp_xp, last_xp_date, sp_points FROM rp_players WHERE user_id = ?", (message.author.id,)) as cursor:
             player = await cursor.fetchone()

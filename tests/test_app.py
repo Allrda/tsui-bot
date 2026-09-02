@@ -23,6 +23,7 @@ async def test_database_initialization():
     assert "rp_stats" in tables
     assert "system_logs" in tables
     assert "user_last_active" in tables
+    assert "daily_rp_activity" in tables
 
 def test_tolerance_bar_formatting():
     bar_normal = generate_tolerance_bar(25.0, 50.0, 0.0)

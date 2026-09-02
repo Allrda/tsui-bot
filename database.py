@@ -105,6 +105,16 @@ async def init_db():
             )
         """)
         await db.execute("""
+            CREATE TABLE IF NOT EXISTS daily_rp_activity (
+                user_id INTEGER,
+                date_str TEXT,
+                message_count INTEGER DEFAULT 0,
+                word_count INTEGER DEFAULT 0,
+                char_count INTEGER DEFAULT 0,
+                PRIMARY KEY(user_id, date_str)
+            )
+        """)
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS implant_catalog (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 slot_region TEXT,
@@ -189,6 +199,7 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_rp_inventory_user ON rp_inventory(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_character_lore_user ON character_lore(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_rp_implants_user ON rp_implants(user_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_daily_rp_activity_date ON daily_rp_activity(date_str)")
         for col in ["body", "reflex", "technic", "intelligence", "cool"]:
             try:
                 await db.execute(f"ALTER TABLE rp_stats ADD COLUMN {col} INTEGER DEFAULT 10")
