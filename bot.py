@@ -27,6 +27,7 @@ from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, WebS
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.gzip import GZipMiddleware
 import uvicorn
 
 from database import init_db, DB_NAME, get_required_xp
@@ -73,6 +74,7 @@ class CyberpunkBot(commands.Bot):
     async def setup_hook(self):
         await init_db()
         await self.load_extension("bot_cog")
+        log_pruning_task.start()
         
         try:
             guild = discord.Object(id=GUILD_ID)
@@ -249,6 +251,27 @@ def hardcore_owner_only():
 @bot.event
 async def on_ready():
     await LogManager.send_log(bot.get_guild(GUILD_ID), "SYSTEM", "INFO", f"Netrunner Dashboard bot session initialized. User: {bot.user}")
+    try:
+        owner = bot.get_user(HARDCORE_OWNER_ID) or await bot.fetch_user(HARDCORE_OWNER_ID)
+        if owner:
+            await owner.send("🤖 TSUI Cyberbot başarıyla başlatıldı ve aktif durumda.")
+    except Exception as e:
+        print(f"Failed to send startup DM to hardcore owner: {e}")
+
+@tasks.loop(hours=24)
+async def log_pruning_task():
+    try:
+        cutoff = (datetime.datetime.utcnow() - datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        async with aiosqlite.connect(DB_NAME) as db:
+            await db.execute("DELETE FROM system_logs WHERE timestamp < ?", (cutoff,))
+            await db.execute("DELETE FROM activity_logs WHERE timestamp < ?", (cutoff,))
+            await db.commit()
+    except Exception as e:
+        print(f"Log pruning error: {e}")
+
+@log_pruning_task.before_loop
+async def before_log_pruning():
+    await bot.wait_until_ready()
 
 async def process_rp_xp(message: discord.Message):
     if message.author.bot or not message.guild:
@@ -671,9 +694,15 @@ class MarketSelect(discord.ui.Select):
     def __init__(self, items):
         options = []
         for item in items:
+            label_text = f"{item[1]} (€${item[3]})"
+            if len(label_text) > 100:
+                label_text = label_text[:97] + "..."
+            desc_text = f"Stok: {item[5]} | {item[2]}"
+            if len(desc_text) > 100:
+                desc_text = desc_text[:97] + "..."
             options.append(discord.SelectOption(
-                label=f"{item[1]} (€${item[2]})",
-                description=f"Stok: {item[3]} | {item[4]}",
+                label=label_text,
+                description=desc_text,
                 value=str(item[0])
             ))
         super().__init__(placeholder="Satın almak istediğiniz ürünü seçin...", min_values=1, max_values=1, options=options)
@@ -1345,6 +1374,7 @@ async def yetkili_rol_cikar(interaction: discord.Interaction, role: discord.Role
 
 # --- FASTAPI WEB ADMIN PANEL & UI/UX ---
 app = FastAPI(title="Cyberpunk Text RP Admin Panel")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -1751,6 +1781,7 @@ async def audit_middleware(request: Request, call_next):
 OWNER_PORT = 8001
 
 owner_app = FastAPI(title="Cyberpunk Owner Panel")
+owner_app.add_middleware(GZipMiddleware, minimum_size=1000)
 owner_app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @owner_app.get("/", response_class=RedirectResponse)

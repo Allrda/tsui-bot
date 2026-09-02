@@ -55,7 +55,7 @@ class ActivityInactivityCog(commands.Cog):
 
             await db.commit()
 
-    @tasks.loop(hours=72)
+    @tasks.loop(hours=24)
     async def inactivity_check_loop(self):
         try:
             guild = self.bot.get_guild(self.guild_id)
@@ -63,9 +63,15 @@ class ActivityInactivityCog(commands.Cog):
                 return
 
             now = datetime.datetime.utcnow()
-            inactive_users = []
+            today_str = now.strftime("%Y-%m-%d")
 
             async with aiosqlite.connect(DB_NAME) as db:
+                async with db.execute("SELECT value FROM bot_meta WHERE key = 'last_inactivity_report_date'") as cursor:
+                    meta_row = await cursor.fetchone()
+                if meta_row and meta_row[0] == today_str:
+                    return
+
+                inactive_users = []
                 async with db.execute("SELECT user_id, username, last_message_date, last_rp_date FROM user_last_active") as cursor:
                     rows = await cursor.fetchall()
 
@@ -88,31 +94,39 @@ class ActivityInactivityCog(commands.Cog):
                     except Exception:
                         pass
 
-            if not inactive_users:
-                return
+                if not inactive_users:
+                    await db.execute("INSERT OR REPLACE INTO bot_meta (key, value) VALUES ('last_inactivity_report_date', ?)", (today_str,))
+                    await db.commit()
+                    return
 
-            embed = discord.Embed(
-                title="[SECURITY] // INACTIVITY AUDIT REPORT",
-                description=f"Automated 72-hour scan detected **{len(inactive_users)}** inactive operatives across the grid.",
-                color=discord.Color(0xFF0000),
-                timestamp=now
-            )
+                embed = discord.Embed(
+                    title="[SECURITY] // INACTIVITY AUDIT REPORT",
+                    description=f"Automated 72-hour scan detected **{len(inactive_users)}** inactive operatives across the grid.",
+                    color=discord.Color(0xFF0000),
+                    timestamp=now
+                )
 
-            report_lines = []
-            for u in inactive_users[:20]:
-                report_lines.append(f"• <@{u['user_id']}> (`{u['username']}`) | Inactive: **{u['days']} days** | Last Active: `{u['last_active']}`")
+                report_lines = []
+                for u in inactive_users[:20]:
+                    report_lines.append(f"• <@{u['user_id']}> (`{u['username']}`) | Inactive: **{u['days']} days** | Last Active: `{u['last_active']}`")
 
-            embed.add_field(name="PASSIVE OPERATIVES", value="\n".join(report_lines) if report_lines else "None", inline=False)
-            embed.set_footer(text="NETRUNNER AUTOMATED AUDIT SYSTEM")
+                embed.add_field(name="PASSIVE OPERATIVES", value="\n".join(report_lines) if report_lines else "None", inline=False)
+                embed.set_footer(text="NETRUNNER AUTOMATED AUDIT SYSTEM")
 
-            target_admin_ids = set(self.owner_ids + self.admin_ids)
-            for adm_id in target_admin_ids:
-                try:
-                    admin_user = guild.get_member(adm_id) or await self.bot.fetch_user(adm_id)
-                    if admin_user:
-                        await admin_user.send(embed=embed)
-                except Exception:
-                    pass
+                target_admin_ids = set(self.owner_ids + self.admin_ids)
+                sent_any = False
+                for adm_id in target_admin_ids:
+                    try:
+                        admin_user = guild.get_member(adm_id) or await self.bot.fetch_user(adm_id)
+                        if admin_user:
+                            await admin_user.send(embed=embed)
+                            sent_any = True
+                    except Exception:
+                        pass
+
+                if sent_any or inactive_users:
+                    await db.execute("INSERT OR REPLACE INTO bot_meta (key, value) VALUES ('last_inactivity_report_date', ?)", (today_str,))
+                    await db.commit()
         except Exception as e:
             print(f"Inactivity check loop error: {e}")
 

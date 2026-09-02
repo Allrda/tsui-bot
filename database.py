@@ -176,6 +176,12 @@ async def init_db():
                 cool INTEGER DEFAULT 10
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS bot_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
         # Performance Indexes
         await db.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_channel ON activity_logs(channel_id)")
@@ -183,6 +189,11 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_rp_inventory_user ON rp_inventory(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_character_lore_user ON character_lore(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_rp_implants_user ON rp_implants(user_id)")
+        for col in ["body", "reflex", "technic", "intelligence", "cool"]:
+            try:
+                await db.execute(f"ALTER TABLE rp_stats ADD COLUMN {col} INTEGER DEFAULT 10")
+            except Exception:
+                pass
         try:
             await db.execute("ALTER TABLE rp_players ADD COLUMN tolerance_boost REAL DEFAULT 0")
         except Exception:
