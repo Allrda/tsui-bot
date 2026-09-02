@@ -1068,12 +1068,13 @@ async def admin_panel(interaction: discord.Interaction):
 @bot.tree.command(name="kayıt", description="Yeni bir Cyberpunk karakteri oluştur.")
 @app_commands.describe(character_name="Karakter Adı", class_name="Rol / Sınıf (Örn: Netrunner, Solo, Techie)")
 async def kayit(interaction: discord.Interaction, character_name: str, class_name: str):
+    await interaction.response.defer(ephemeral=False)
     user_id = interaction.user.id
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT user_id FROM rp_players WHERE user_id = ?", (user_id,)) as cursor:
             existing = await cursor.fetchone()
         if existing:
-            await interaction.response.send_message("Zaten kayıtlı bir karakteriniz bulunuyor.", ephemeral=False)
+            await interaction.followup.send("Zaten kayıtlı bir karakteriniz bulunuyor.", ephemeral=False)
             return
         
         await db.execute(
@@ -1087,7 +1088,7 @@ async def kayit(interaction: discord.Interaction, character_name: str, class_nam
         description=f"Karakter başarıyla oluşturuldu!\n\n**İsim:** `{character_name}`\n**Sınıf:** `{class_name}`\n**Başlangıç Bakiyesi:** €$100",
         color=discord.Color(0x00F0FF)
     )
-    await interaction.response.send_message(embed=embed, ephemeral=False)
+    await interaction.followup.send(embed=embed, ephemeral=False)
 
 @bot.tree.command(name="profil", description="Karakter profilini ve portföyünü görüntüle.")
 @app_commands.describe(member="Hedef kullanıcı (Opsiyonel)")
@@ -1168,15 +1169,16 @@ async def market(interaction: discord.Interaction):
 
 @bot.tree.command(name="roll-baslangic", description="Karakter başlangıç statları için zar at.")
 async def roll_baslangic(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
     user_id = interaction.user.id
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT roll_baslangic_done FROM rp_players WHERE user_id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
         if not row:
-            await interaction.response.send_message("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=False)
+            await interaction.followup.send("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=False)
             return
         if row[0] == 1:
-            await interaction.response.send_message("Başlangıç zarlarını zaten attınız.", ephemeral=False)
+            await interaction.followup.send("Başlangıç zarlarını zaten attınız.", ephemeral=False)
             return
 
         bonus_balance = random.randint(50, 250)
@@ -1190,19 +1192,20 @@ async def roll_baslangic(interaction: discord.Interaction):
         description=f"Zarlar atıldı!\n\n💰 **Ekstra Bakiye:** €${bonus_balance}\n⚡ **Ekstra SP:** +{bonus_sp}",
         color=discord.Color(0xFFE600)
     )
-    await interaction.response.send_message(embed=embed, ephemeral=False)
+    await interaction.followup.send(embed=embed, ephemeral=False)
 
 @bot.tree.command(name="roll-tolerans", description="Sinirsel tolerans zarı at.")
 async def roll_tolerans(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
     user_id = interaction.user.id
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT max_tolerance, roll_tolerans_done, has_used_tolerance FROM rp_players WHERE user_id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
         if not row:
-            await interaction.response.send_message("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=False)
+            await interaction.followup.send("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=False)
             return
         if row[2] == 1 or row[1] == 1:
-            await interaction.response.send_message("Bu komutu karakteriniz için yalnızca bir kez kullanabilirsiniz.", ephemeral=False)
+            await interaction.followup.send("Bu komutu karakteriniz için yalnızca bir kez kullanabilirsiniz.", ephemeral=False)
             return
         
         tol_roll = random.randint(10, 40)
@@ -1216,19 +1219,20 @@ async def roll_tolerans(interaction: discord.Interaction):
         description=f"Sinirsel kapasite testi tamamlandı!\n\n🧠 **Yeni Max Tolerans:** %{new_max}",
         color=discord.Color(0xFF0055)
     )
-    await interaction.response.send_message(embed=embed, ephemeral=False)
+    await interaction.followup.send(embed=embed, ephemeral=False)
 
 @bot.tree.command(name="death_gambling", description="Tüm varlığınızı riske atacağınız yüksek riskli ölüm kumarı.")
 async def death_gambling(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
     user_id = interaction.user.id
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT balance, character_name FROM rp_players WHERE user_id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
         if not row:
-            await interaction.response.send_message("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=True)
+            await interaction.followup.send("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=True)
             return
         if (row[0] or 0.0) <= 0:
-            await interaction.response.send_message("Kumar oynamak için nakit bakiyeniz bulunmuyor (€$0).", ephemeral=True)
+            await interaction.followup.send("Kumar oynamak için nakit bakiyeniz bulunmuyor (€$0).", ephemeral=True)
             return
 
     embed = discord.Embed(
@@ -1236,16 +1240,17 @@ async def death_gambling(interaction: discord.Interaction):
         description=f"Operative **{row[1]}**, ölüm kumarı masasına oturdunuz.\n\n• **Kazanma (%10 Şans):** Tüm servetiniz %190 oranında katlanır.\n• **Kaybetme (%90 Şans):** Her şeyiniz (%50 bakiye, envanter, stat, tolerans) yarı yarıya düşer ve **☠️ Beceriksiz Kumarbaz Damgası** alırsınız.\n\nDevam etmek için aşağıdaki uyarı butonuna tıklayın.",
         color=discord.Color(0xFF0055)
     )
-    await interaction.response.send_message(embed=embed, view=DeathGambleStage1View(user_id), ephemeral=False)
+    await interaction.followup.send(embed=embed, view=DeathGambleStage1View(user_id), ephemeral=False)
 
 @bot.tree.command(name="hack", description="Ana terminale bağlanarak matrix kod çözme mini oyunu.")
 async def hack(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
     user_id = interaction.user.id
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT character_name FROM rp_players WHERE user_id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
         if not row:
-            await interaction.response.send_message("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=True)
+            await interaction.followup.send("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=True)
             return
 
     embed = discord.Embed(
@@ -1253,12 +1258,13 @@ async def hack(interaction: discord.Interaction):
         description="Terminal bağlantısı kuruldu. Lütfen hack zorluk derecesini seçin:",
         color=discord.Color(0x00F0FF)
     )
-    await interaction.response.send_message(embed=embed, view=HackDifficultyView(user_id), ephemeral=False)
+    await interaction.followup.send(embed=embed, view=HackDifficultyView(user_id), ephemeral=False)
 
 @bot.tree.command(name="karakter-lore-ekle", description="Karaktere lore geçmişi ekle (Admin).")
 @authorized_only()
 @app_commands.describe(member="Hedef karakter", sub_title="Hikaye Başlığı", content="Hikaye içeriği")
 async def karakter_lore_ekle(interaction: discord.Interaction, member: discord.Member, sub_title: str, content: str):
+    await interaction.response.defer(ephemeral=True)
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
@@ -1266,21 +1272,23 @@ async def karakter_lore_ekle(interaction: discord.Interaction, member: discord.M
             (member.id, sub_title, content, str(interaction.user), timestamp)
         )
         await db.commit()
-    await interaction.response.send_message(f"{member.mention} için lore kaydı başarıyla eklendi.", ephemeral=True)
+    await interaction.followup.send(f"{member.mention} için lore kaydı başarıyla eklendi.", ephemeral=True)
 
 @bot.tree.command(name="sp-yonet", description="Kullanıcıya SP puanı ekle veya çıkar (Admin).")
 @authorized_only()
 @app_commands.describe(member="Hedef kullanıcı", amount="Eklenecek/Çıkarılacak Miktar")
 async def sp_yonet(interaction: discord.Interaction, member: discord.Member, amount: float):
+    await interaction.response.defer(ephemeral=True)
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("UPDATE rp_players SET sp_points = sp_points + ? WHERE user_id = ?", (amount, member.id))
         await db.commit()
-    await interaction.response.send_message(f"{member.mention} için SP puanı güncellendi ({amount:+g}).", ephemeral=True)
+    await interaction.followup.send(f"{member.mention} için SP puanı güncellendi ({amount:+g}).", ephemeral=True)
 
 @bot.tree.command(name="implant-ekle", description="Karaktere implant taktır (Admin).")
 @authorized_only()
 @app_commands.describe(member="Hedef kullanıcı", slot_region="Bölge (Örn: Ocular System)", implant_name="İmplant Adı", tolerance_cost="Tolerans Maliyeti")
 async def implant_ekle(interaction: discord.Interaction, member: discord.Member, slot_region: str, implant_name: str, tolerance_cost: float):
+    await interaction.response.defer(ephemeral=True)
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             "INSERT INTO rp_implants (user_id, slot_region, implant_name, tolerance_cost) VALUES (?, ?, ?, ?)",
@@ -1288,34 +1296,37 @@ async def implant_ekle(interaction: discord.Interaction, member: discord.Member,
         )
         await db.execute("UPDATE rp_players SET current_tolerance = current_tolerance + ? WHERE user_id = ?", (tolerance_cost, member.id))
         await db.commit()
-    await interaction.response.send_message(f"{member.mention} kullanıcısına **{implant_name}** implantı takıldı.", ephemeral=True)
+    await interaction.followup.send(f"{member.mention} kullanıcısına **{implant_name}** implantı takıldı.", ephemeral=True)
 
 @bot.tree.command(name="ekonomi-yonet", description="Karakter bütçesini yönet (Admin).")
 @authorized_only()
 @app_commands.describe(member="Hedef kullanıcı", amount="Eklenecek/Çıkarılacak €$ Miktarı")
 async def ekonomi_yonet(interaction: discord.Interaction, member: discord.Member, amount: float):
+    await interaction.response.defer(ephemeral=True)
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("UPDATE rp_players SET balance = balance + ? WHERE user_id = ?", (amount, member.id))
         await db.commit()
-    await interaction.response.send_message(f"{member.mention} bakiyesi güncellendi (€${amount:+,.2f}).", ephemeral=True)
+    await interaction.followup.send(f"{member.mention} bakiyesi güncellendi (€${amount:+,.2f}).", ephemeral=True)
 
 @bot.tree.command(name="yetkili-rol-ekle", description="Yönetim paneli için yetkili rol ekle (Owner).")
 @hardcore_owner_only()
 @app_commands.describe(role="Yetkili verilecek Discord rolü")
 async def yetkili_rol_ekle(interaction: discord.Interaction, role: discord.Role):
+    await interaction.response.defer(ephemeral=True)
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("INSERT OR IGNORE INTO authorized_roles (role_id) VALUES (?)", (role.id,))
         await db.commit()
-    await interaction.response.send_message(f"@{role.name} yetkili rollere eklendi.", ephemeral=True)
+    await interaction.followup.send(f"@{role.name} yetkili rollere eklendi.", ephemeral=True)
 
 @bot.tree.command(name="yetkili-rol-cikar", description="Yetkili rolü kaldır (Owner).")
 @hardcore_owner_only()
 @app_commands.describe(role="Kaldırılacak Discord rolü")
 async def yetkili_rol_cikar(interaction: discord.Interaction, role: discord.Role):
+    await interaction.response.defer(ephemeral=True)
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("DELETE FROM authorized_roles WHERE role_id = ?", (role.id,))
         await db.commit()
-    await interaction.response.send_message(f"@{role.name} yetkili rollerden çıkarıldı.", ephemeral=True)
+    await interaction.followup.send(f"@{role.name} yetkili rollerden çıkarıldı.", ephemeral=True)
 
 
 # --- FASTAPI WEB ADMIN PANEL & UI/UX ---
