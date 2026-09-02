@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Player Detail - Cyberpunk Admin{% endblock %}
+{% block content %}
+<div class="section">
+    <h2>[OPERATIVE DETAIL] // {{ player.character_name }} 
+        {% if player.has_gambler_mark %}
+        <span class="badge" style="background: var(--neon-red); color: white; box-shadow: 0 0 10px var(--neon-red);">☠️ Beceriksiz Kumarbaz Damgası</span>
+        {% endif %}
+    </h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px;">
+        <div>
+            <p><strong>Discord ID:</strong> {{ player.user_id }}</p>
+            <p><strong>Character Name:</strong> {{ player.character_name }}</p>
+            <p><strong>Class:</strong> <span class="badge">{{ player.class_name }}</span></p>
+            <p><strong>Balance:</strong> €${{ "%.2f"|format(player.balance) }}</p>
+            <p><strong>Salary:</strong> €${{ player.salary }}</p>
+            <p><strong>Living Cost:</strong> €${{ player.living_cost }}</p>
+        </div>
+        <div>
+            <p><strong>Popularity:</strong> {{ player.popularity }}</p>
+            <p><strong>SP Points:</strong> <span class="badge badge-cyan">{{ player.sp_points }} SP</span></p>
+            <p><strong>Neural Tolerance:</strong> %{{ player.current_tolerance }} / %{{ player.max_tolerance }} (Boost: +%{{ player.tolerance_boost or 0 }})</p>
+            {% set eff_max = player.max_tolerance * (1 + (player.tolerance_boost or 0) / 100) if player.max_tolerance > 0 else 100 %}
+            {% set pct = (player.current_tolerance / eff_max * 100) if eff_max > 0 else 0 %}
+            <div class="cyber-progress">
+                <div class="cyber-progress-bar {% if pct >= 80 %}critical{% endif %}" style="width: {{ pct }}%;"></div>
+            </div>
+            {% if pct >= 100 %}
+            <p style="color: var(--neon-red); font-weight: bold; margin-top: 5px;">⚠️ [CYBERPSYCHOSIS WARNING] Neural capacity exceeded!</p>
+            {% endif %}
+            <p style="margin-top: 15px;"><strong>Roll Başlangıç:</strong> {{ player.roll_baslangic_done }}</p>
+            <p><strong>Roll Tolerans:</strong> {{ player.roll_tolerans_done }}</p>
+        </div>
+    </div>
+    
+    <!-- CLASS SECOND PAGE / STREET CRED & SKILLS -->
+    <div class="section" style="margin-top: 25px; border-left: 4px solid var(--neon-yellow);">
+        <h2 style="color: var(--neon-yellow);">[CLASS & STREET CRED] // SAYFA 2: CLASS BİLGİLERİ VE İLERLEME</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px; margin-top: 15px;">
+            <div>
+                <p><strong>1. Class İsmi:</strong> <span class="badge badge-cyan">{{ player.class_name or 'Solo' }}</span></p>
+                <p><strong>2. Class İlerlemesi & Rank:</strong> Rank <span class="badge" style="background: var(--neon-pink);">{{ player.class_rank }}</span> (Toplam Stat: {{ player.total_stat }}/50)</p>
+                <p style="font-size: 12px; color: var(--text-muted);">Primary ({{ player.primary_stat_name }}): {{ player.primary_stat_val }} | Secondary ({{ player.secondary_stat_name }}): {{ player.secondary_stat_val }}</p>
+                <p style="margin-top: 15px;"><strong>4. Popülerlik (Street Cred / Reputation):</strong> {{ player.popularity }} / 100</p>
+                <div class="cyber-progress">
+                    <div class="cyber-progress-bar" style="width: {{ player.street_cred_pct }}%; background: var(--neon-yellow);"></div>
+                </div>
+            </div>
+            <div>
+                <p><strong>3. Açılan Class Skilleri:</strong></p>
+                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                    {% for item in player.processed_skills %}
+                    <li>
+                        <strong>Rank {{ item.rank }}:</strong> 
+                        {% if item.unlocked %}
+                        <span style="color: var(--neon-cyan);">🔓 {{ item.skills | join(', ') }}</span>
+                        {% else %}
+                        <span style="color: var(--text-muted);">🔒 {{ item.skills | join(', ') }} (Kilitli)</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN TOLERANCE BOOST SECTION -->
+    <div style="margin-top: 25px; background: var(--bg-card); padding: 15px; border: 1px solid var(--neon-pink);">
+        <h3 style="color: var(--neon-pink); margin-top: 0;">+ Tolerans Ekle (Admin Boost)</h3>
+        <form method="POST" action="/admin/player/tolerance-boost" style="display: flex; gap: 10px; align-items: center;" onsubmit="this.querySelector('input[type=submit]').disabled=true;">
+            <input type="hidden" name="user_id" value="{{ player.user_id }}">
+            <input type="text" name="boost_add" placeholder="Örn: 10 (Yüzde %)" required style="width: 200px;" oninput="this.value = this.value.replace(/[^0-9.-]/g, '')">
+            <input type="submit" value="Tolerans Boost Uygula">
+        </form>
+    </div>
+
+    <!-- KILL / CHARACTER RESET SECTION -->
+    <div style="margin-top: 25px; background: var(--bg-card); padding: 15px; border: 1px solid var(--neon-red);">
+        <h3 style="color: var(--neon-red); margin-top: 0;">☠️ Karakteri Sıfırla / Sil (Kill Operative)</h3>
+        <p style="color: var(--text-muted); font-size: 13px;">Bu işlem kullanıcının tüm verilerini (karakter, envanter, implant, istatistikler ve roll hakları) tamamen sıfırlar/siler. Kullanıcı tekrar kayıt olup roll haklarını sıfırdan kullanabilir.</p>
+        <form method="POST" action="/admin/player/kill" onsubmit="return confirm('Bu işlem geri alınamaz, emin misiniz?');">
+            <input type="hidden" name="user_id" value="{{ player.user_id }}">
+            <input type="submit" value="Karakteri Sıfırla (Kill)" style="background: var(--neon-red); color: white; border: none; padding: 8px 16px; font-family: monospace; font-weight: bold; cursor: pointer;">
+        </form>
+    </div>
+
+    <!-- WEB INVENTORY VISUAL GRID (DRAG & DROP) -->
+    <div style="margin-top: 25px;">
+        <h3>[INVENTORY GRID] // Sürükle & Bırak Envanter Yönetimi</h3>
+        <p style="color: var(--text-muted); font-size: 13px;">Operative ekipmanlarını grid üzerinde sıralayabilir ve düzenleyebilirsiniz.</p>
+        <div id="inventoryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 10px;">
+            {% if player.implants or player.inventory_items %}
+                {% if player.implants %}
+                    {% for imp in player.implants %}
+                    <div class="inv-item" draggable="true" ondragstart="drag(event)" style="background: var(--bg-card); border: 1px solid var(--neon-cyan); padding: 10px; border-radius: 4px; cursor: grab; text-align: center;">
+                        <div style="font-size: 20px;">🦾</div>
+                        <div style="font-weight: bold; font-size: 13px; color: var(--neon-cyan);">{{ imp[1] }}</div>
+                        <small style="color: var(--text-muted);">{{ imp[0] }} (%{{ imp[2] }})</small>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% else %}
+                <div style="color: var(--text-muted); grid-column: span 3;">Envanterde öğe bulunmuyor.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <h3>Installed Implants</h3>
+        {% if player.implants %}
+            <ul>
+                {% for imp in player.implants %}
+                <li><strong>{{ imp[1] }}</strong> (Region: {{ imp[0] }}, Tolerance: %{{ imp[2] }})</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p style="color: var(--text-muted);">No implants installed.</p>
+        {% endif %}
+    </div>
+    <div style="margin-top: 20px;">
+        <a href="/admin/dashboard" class="nav-links" style="display:inline-block; border-color: var(--neon-cyan); color: var(--neon-cyan); padding: 8px 16px; text-decoration: none;">← Back to Dashboard</a>
+    </div>
+</div>
+
+<script>
+    function drag(ev) {
+        ev.dataTransfer.setData("text", ev.target.id);
+    }
+    const grid = document.getElementById('inventoryGrid');
+    grid.addEventListener('dragover', (e) => e.preventDefault());
+    grid.addEventListener('drop', (e) => {
+        e.preventDefault();
+        // Visual grid reordering logic can be added here
+    });
+</script>
+{% endblock %}

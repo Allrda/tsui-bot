@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Owner Control Center - Cyberpunk</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <h1>[OWNER MATRIX] // SUPREME CONTROL CENTER</h1>
+            <span class="badge badge-cyan" style="font-size: 11px; padding: 4px 10px; box-shadow: 0 0 10px var(--neon-cyan); letter-spacing: 1px;">PORT 8001 // SECURE</span>
+        </div>
+        <div class="nav-links">
+            <span style="color: var(--neon-green); font-family: monospace; align-self: center;">STATUS: SECURE ACCESS</span>
+        </div>
+    </header>
+
+    <div style="max-width: 1400px; margin: 20px auto; padding: 0 20px;">
+        <!-- Admin Management Section -->
+        <div class="section" style="margin-bottom: 30px;">
+            <h2 style="color: var(--neon-cyan);">[ADMIN MANAGEMENT] // YÖNETİCİ HESAPLARI & ŞİFRELER</h2>
+            <p style="color: var(--text-muted);">Port 8000 (Admin Paneli) için giriş yapabilecek admin hesaplarını ve şifrelerini buradan yönetebilirsiniz.</p>
+
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: 6px; margin-bottom: 20px;">
+                <form method="POST" action="/owner/admins/add" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">Kullanıcı Adı</label>
+                        <input type="text" name="username" required placeholder="Admin kullanıcı adı" style="width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px; font-family: monospace;">
+                    </div>
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">Şifre</label>
+                        <input type="password" name="password" required placeholder="Yeni şifre" style="width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px; font-family: monospace;">
+                    </div>
+                    <div>
+                        <input type="submit" value="HESAP EKLE / GÜNCELLE" style="background: var(--neon-cyan); border: none; color: #000; font-weight: bold; padding: 9px 20px; cursor: pointer; font-family: monospace;">
+                    </div>
+                </form>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Kullanıcı Adı</th>
+                        <th>Rol</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for adm in admins %}
+                    <tr>
+                        <td>{{ adm[0] }}</td>
+                        <td><strong style="color: var(--neon-cyan);">{{ adm[1] }}</strong></td>
+                        <td>{{ adm[2] }}</td>
+                        <td>
+                            <form method="POST" action="/owner/admins/delete" style="display:inline;" onsubmit="return confirm('Bu admin hesabını silmek istediğinize emin misiniz?');">
+                                <input type="hidden" name="admin_id" value="{{ adm[0] }}">
+                                <input type="submit" value="SİL" style="background: transparent; border: 1px solid var(--neon-red); color: var(--neon-red); padding: 4px 10px; font-size: 11px; cursor: pointer;">
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted);">Kayıtlı admin hesabı bulunmuyor.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Owner Audit Logs Section -->
+        <div class="section">
+            <h2 style="color: var(--neon-pink);">[AUDIT LOGS] // ADMİNLERİN İŞLEM VE IP GEÇMİŞİ</h2>
+            <p style="color: var(--text-muted);">Adminlerin Port 8000'de hangi IP adreslerinden bağlandıkları, hangi sayfalara girdikleri ve gerçekleştirdikleri tüm işlemler.</p>
+
+            <div style="margin-bottom: 15px;">
+                <input type="text" id="logSearch" placeholder="Loglarda ara (Admin adı, IP, işlem)..." oninput="filterLogs()" style="width: 100%; background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px; font-family: monospace;">
+            </div>
+
+            <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
+                <table id="auditTable">
+                    <thead>
+                        <tr>
+                            <th>Zaman (UTC)</th>
+                            <th>Admin Hesap</th>
+                            <th>IP Adresi</th>
+                            <th>İşlem / Sayfa</th>
+                            <th>Detaylar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td style="white-space: nowrap; color: var(--text-muted);">{{ log[0] }}</td>
+                            <td><strong style="color: var(--neon-cyan);">{{ log[1] }}</strong></td>
+                            <td><span style="color: var(--neon-yellow);">{{ log[2] }}</span></td>
+                            <td><code style="color: var(--neon-pink);">{{ log[3] }}</code></td>
+                            <td style="font-size: 12px; color: var(--text-muted);">{{ log[4] }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted);">Henüz kayıtlı admin aktivitesi bulunmuyor.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <footer style="margin-top: 40px; padding: 20px 0; border-top: 1px dashed var(--border-color); text-align: center; font-size: 12px; color: var(--text-muted);">
+        <span style="color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink); font-weight: bold;">MADE BY devpact</span> // OWNER CONTROL CENTER (PORT 8001)
+    </footer>
+
+    <script>
+        function filterLogs() {
+            const query = document.getElementById('logSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#auditTable tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

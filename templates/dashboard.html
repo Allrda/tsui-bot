@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Cyberpunk RP Admin Dashboard{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .form-group { display: inline-block; margin-right: 15px; margin-bottom: 10px; width: auto; }
+    .form-group input, .form-group select { width: 100%; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <!-- HEATMAP & ACTIVITY ANALYTICS -->
+    <div class="section">
+        <h2>[ANALYTICS] // 24-HOUR ACTIVITY HEATMAP</h2>
+        <div style="position: relative; height: 280px; width: 100%;">
+            <canvas id="heatmapChart"></canvas>
+        </div>
+    </div>
+
+    <!-- BROADCAST DM SENDING CENTER -->
+    <div class="section">
+        <h2>[BROADCAST] // DM GÖNDERME MERKEZİ</h2>
+        <form id="broadcastForm" onsubmit="sendBroadcast(event)">
+            <div style="margin-bottom: 15px;">
+                <label>Hedef Kitle (Target):</label>
+                <select name="target_type" id="targetType" onchange="toggleTargetIdField(this.value)" required>
+                    <option value="all">Tüm Sunucu (All Server)</option>
+                    <option value="role">Belirli Bir Rol (Role ID)</option>
+                    <option value="user">Tekil Kullanıcı (User ID)</option>
+                </select>
+            </div>
+            <div id="targetIdGroup" style="margin-bottom: 15px; display: none;">
+                <label>Hedef ID (Rol ID veya User ID):</label>
+                <input type="text" name="target_id" id="targetIdInput" placeholder="Örn: 1386773654876197005" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>Bildirim Başlığı (Title):</label>
+                <input type="text" name="title" required placeholder="Örn: Sistem Duyurusu">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>Mesaj İçeriği (Content):</label>
+                <textarea name="content" rows="3" required placeholder="Netrunner mesaj içeriğini buraya giriniz..."></textarea>
+            </div>
+            <input type="submit" value="Broadcast DM Gönder">
+        </form>
+        <div id="broadcastResult" style="margin-top: 15px; font-weight: bold;"></div>
+    </div>
+
+    <!-- FAILED USERS MODAL -->
+    <div id="failedModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>[ERROR] // BAŞARISIZ GÖNDERİM LİSTESİ</h3>
+                <button class="close-btn" onclick="closeFailedModal()">X</button>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">
+                Aşağıdaki kullanıcılara DM iletilemedi (DM'leri kapalı veya bot erişemiyor):
+            </div>
+            <div id="failedUsersList" style="max-height: 300px; overflow-y: auto;">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>[PLAYERS] // ROSTER & PORTFOLIO AUDIT</h2>
+        <table>
+            <tr>
+                <th>Discord ID</th>
+                <th>Character Name</th>
+                <th>Class</th>
+                <th>Balance (€$)</th>
+                <th>Net Income</th>
+                <th>SP Points</th>
+                <th>Neural Tolerance</th>
+                <th>Installed Hardware</th>
+                <th>Actions</th>
+            </tr>
+            {% for p in players %}
+            <tr>
+                <td>{{ p.user_id }}</td>
+                <td><a href="/admin/player/{{ p.user_id }}" style="color: var(--neon-cyan); text-decoration: none;"><strong>{{ p.character_name }}</strong> 🔗</a></td>
+                <td><span class="badge">{{ p.class_name }}</span></td>
+                <td>€${{ "%.2f"|format(p.balance) }}</td>
+                <td>€${{ (p.salary or 100) - (p.living_cost or 30) }}</td>
+                <td><span class="badge badge-cyan">{{ p.sp_points }} SP</span></td>
+                <td>
+                    %{{ "%.1f"|format(p.current_tolerance) }} / %{{ "%.1f"|format(p.max_tolerance) }}
+                    {% set pct = (p.current_tolerance / p.max_tolerance * 100) if p.max_tolerance > 0 else 0 %}
+                    <div class="cyber-progress">
+                        <div class="cyber-progress-bar {% if pct >= 80 %}critical{% endif %}" style="width: {{ pct }}%;"></div>
+                    </div>
+                </td>
+                <td>
+                    {% if p.implants %}
+                        {% for imp in p.implants %}<small>• {{ imp[1] }} [{{ imp.slot_region if imp.slot_region is defined else imp[0] }}] (Cost: %{{ imp[2] }})</small><br>{% endfor %}
+                    {% else %}
+                        <small style="color: var(--text-muted);">None</small>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="POST" action="/admin/player/update" style="display:inline;" onsubmit="this.querySelector('input[type=submit]').disabled=true;">
+                        <input type="hidden" name="user_id" value="{{ p.user_id }}">
+                        <input type="text" name="balance_add" placeholder="+€" style="width: 70px;">
+                        <input type="text" name="sp_add" placeholder="+SP" style="width: 45px;">
+                        <input type="submit" value="Update">
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script>
+        let cachedFailedUsers = [];
+
+        function toggleTargetIdField(val) {
+            const group = document.getElementById('targetIdGroup');
+            const input = document.getElementById('targetIdInput');
+            if (val === 'all') {
+                group.style.display = 'none';
+                input.removeAttribute('required');
+            } else {
+                group.style.display = 'block';
+                input.setAttribute('required', 'true');
+            }
+        }
+
+        async function loadHeatmapData() {
+            try {
+                const res = await fetch('/admin/api/heatmap');
+                const data = await res.json();
+                
+                const hours = Array.from({length: 24}, (_, i) => `${i.toString().padStart(2, '0')}:00`);
+                const counts = hours.map((h, i) => data.hourly[i.toString()] || 0);
+
+                const ctx = document.getElementById('heatmapChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: 'Mesaj Yoğunluğu (Activity Count)',
+                            data: counts,
+                            backgroundColor: 'rgba(0, 240, 255, 0.6)',
+                            borderColor: '#00F0FF',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                grid: { color: '#2A2A45' },
+                                ticks: { color: '#E0E0E8' }
+                            },
+                            x: {
+                                grid: { color: '#2A2A45' },
+                                ticks: { color: '#E0E0E8' }
+                            }
+                        },
+                        plugins: {
+                            legend: { labels: { color: '#E0E0E8', font: { family: 'monospace' } } }
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error('Heatmap load error:', err);
+            }
+        }
+
+        async function sendBroadcast(event) {
+            event.preventDefault();
+            const form = document.getElementById('broadcastForm');
+            const formData = new FormData(form);
+            const resultDiv = document.getElementById('broadcastResult');
+            resultDiv.style.color = 'var(--neon-yellow)';
+            resultDiv.textContent = 'Broadcast gönderiliyor...';
+
+            try {
+                const res = await fetch('/admin/broadcast/send', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    cachedFailedUsers = data.failed_users || [];
+                    resultDiv.style.color = 'var(--neon-cyan)';
+                    resultDiv.innerHTML = `Başarılı Gönderim: ${data.success_count} | <a href="#" onclick="openFailedModal(event)" style="color: var(--neon-red); text-decoration: underline; font-weight: bold;">Başarısız: ${data.failure_count}</a> | Toplam: ${data.total_attempted}`;
+                } else {
+                    resultDiv.style.color = 'var(--neon-red)';
+                    resultDiv.textContent = 'Broadcast gönderiminde hata oluştu.';
+                }
+            } catch (err) {
+                resultDiv.style.color = 'var(--neon-red)';
+                resultDiv.textContent = 'Bağlantı hatası: ' + err.message;
+            }
+        }
+
+        function openFailedModal(event) {
+            event.preventDefault();
+            const listContainer = document.getElementById('failedUsersList');
+            if (cachedFailedUsers.length === 0) {
+                listContainer.innerHTML = '<div style="color: var(--neon-cyan); padding: 10px;">Başarısız kullanıcı bulunmuyor.</div>';
+            } else {
+                let html = '<table style="width:100%; border-collapse: collapse;"><tr><th>Discord ID</th><th>Username</th></tr>';
+                cachedFailedUsers.forEach(u => {
+                    html += `<tr><td>${u.id}</td><td>${u.username}</td></tr>`;
+                });
+                html += '</table>';
+                listContainer.innerHTML = html;
+            }
+            document.getElementById('failedModal').style.display = 'flex';
+        }
+
+        function closeFailedModal() {
+            document.getElementById('failedModal').style.display = 'none';
+        }
+
+        window.addEventListener('DOMContentLoaded', loadHeatmapData);
+    </script>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Live Logs - Cyberpunk Admin{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<style>
+    .log-controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .log-controls input, .log-controls select, .log-controls button {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-color);
+        padding: 6px 12px;
+        font-family: monospace;
+        font-size: 13px;
+    }
+    .log-controls button:hover {
+        border-color: var(--neon-cyan);
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h2 style="margin: 0; border: none; padding: 0;">[XTERM STREAM] // LIVE TERMINAL LOG MONITOR</h2>
+        <button onclick="clearTerminal()" style="background: var(--bg-primary); border: 1px solid var(--neon-red); color: var(--neon-red); padding: 5px 12px; font-size: 12px;">Terminali Temizle</button>
+    </div>
+    <p style="color: var(--text-muted); margin-top: 0;">xterm.js entegrasyonu ile gerçek zamanlı siberpunk log akışı ve dinamik filtreleme merkezi.</p>
+    
+    <div class="log-controls">
+        <input type="text" id="logSearch" placeholder="Log ara (regex/metin)..." oninput="filterLogs()" style="flex: 1; min-width: 200px;">
+        <select id="levelFilter" onchange="filterLogs()">
+            <option value="ALL">Tüm Seviyeler (All Levels)</option>
+            <option value="INFO">[INFO] Yeşil</option>
+            <option value="WARN">[WARN] Sarı</option>
+            <option value="ERROR">[ERROR] Kırmızı</option>
+            <option value="RP-EVENT">[RP-EVENT] Mor</option>
+        </select>
+        <button onclick="toggleAutoScroll()">Auto-Scroll: <span id="scrollStatus">ON</span></button>
+    </div>
+
+    <div id="terminalContainer" style="background: #0b0b16; border: 1px solid var(--neon-cyan); padding: 10px; height: 450px; width: 100%; border-radius: 4px;"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let term;
+    let fitAddon;
+    let rawLogEntries = [];
+    let autoScroll = true;
+
+    function initTerminal() {
+        term = new Terminal({
+            cursorBlink: true,
+            theme: {
+                background: '#0b0b16',
+                foreground: '#00F0FF',
+                cursor: '#00F0FF',
+                green: '#00FF66',
+                yellow: '#FFE600',
+                red: '#FF0055',
+                magenta: '#BD00FF'
+            },
+            fontFamily: 'monospace',
+            fontSize: 13,
+            rows: 24
+        });
+        fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminalContainer'));
+        fitAddon.fit();
+
+        term.writeln('\x1b[33m[SYSTEM] // Initializing xterm.js cyberpunk stream terminal...\x1b[0m');
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsUrl = protocol + window.location.host + '/ws/logs';
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = function() {
+        term.writeln('\x1b[32m[CONNECTED] // WebSocket stream established successfully.\x1b[0m');
+    };
+
+    ws.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            rawLogEntries.push(data);
+            if (rawLogEntries.length > 500) rawLogEntries.shift();
+            renderFilteredLogs();
+        } catch (err) {
+            term.writeln('\x1b[31m[ERROR] // Failed to parse log stream payload.\x1b[0m');
+        }
+    };
+
+    ws.onclose = function() {
+        term.writeln('\x1b[31m[DISCONNECTED] // WebSocket stream closed.\x1b[0m');
+    };
+
+    function renderFilteredLogs() {
+        const query = document.getElementById('logSearch').value.toLowerCase();
+        const levelSel = document.getElementById('levelFilter').value;
+
+        term.clear();
+        term.writeln('\x1b[33m[FILTERED VIEW] // Active stream logs:\x1b[0m');
+
+        for (const entry of rawLogEntries) {
+            const timestamp = entry.timestamp || '';
+            const category = entry.category || 'SYSTEM';
+            const level = entry.level || 'INFO';
+            const message = entry.message || '';
+
+            // Check level filter
+            if (levelSel !== 'ALL') {
+                if (levelSel === 'RP-EVENT' && category !== 'RP' && category !== 'RP-EVENT') continue;
+                if (levelSel !== 'RP-EVENT' && level !== levelSel) continue;
+            }
+
+            const fullText = `[${timestamp}] [${category}/${level}] ${message}`;
+            if (query && !fullText.toLowerCase().includes(query)) {
+                continue;
+            }
+
+            let colorCode = '\x1b[36m'; // Cyan default
+            if (level === 'INFO') colorCode = '\x1b[32m'; // Green
+            else if (level === 'WARN' || level === 'WARNING') colorCode = '\x1b[33m'; // Yellow
+            else if (level === 'ERROR' || level === 'SECURITY' || level === 'CRITICAL') colorCode = '\x1b[31m'; // Red
+            else if (category === 'RP' || category === 'RP-EVENT') colorCode = '\x1b[35m'; // Purple / Magenta
+
+            term.writeln(`${colorCode}${fullText}\x1b[0m`);
+        }
+
+        if (autoScroll) {
+            term.scrollToBottom();
+        }
+    }
+
+    function filterLogs() {
+        renderFilteredLogs();
+    }
+
+    function clearTerminal() {
+        rawLogEntries = [];
+        term.clear();
+        term.writeln('\x1b[33m[SYSTEM] // Terminal buffer cleared.\x1b[0m');
+    }
+
+    function toggleAutoScroll() {
+        autoScroll = !autoScroll;
+        document.getElementById('scrollStatus').textContent = autoScroll ? 'ON' : 'OFF';
+    }
+
+    window.addEventListener('DOMContentLoaded', initTerminal);
+    window.addEventListener('resize', () => { if (fitAddon) fitAddon.fit(); });
+</script>
+{% endblock %}
