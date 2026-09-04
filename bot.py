@@ -62,6 +62,34 @@ WEB_PORT = 8000
 BASE_URL = "http://89.144.20.122:8000"
 
 GLOBAL_SHUTDOWN = False
+GLOBAL_PAUSED = False
+
+class ResumeBotView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Sistemleri Yeniden Başlat (Resume)", style=discord.ButtonStyle.green, custom_id="resume_bot_persistent_button")
+    async def resume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != HARDCORE_OWNER_ID:
+            await interaction.response.send_message("Bu butonu yalnızca Hardcore Owner kullanabilir.", ephemeral=True)
+            return
+        
+        global GLOBAL_PAUSED
+        GLOBAL_PAUSED = False
+        
+        for child in self.children:
+            child.disabled = True
+        
+        embed = interaction.message.embeds[0] if interaction.message.embeds else discord.Embed(title="[SYSTEM] // RESUMED")
+        embed.color = discord.Color(0x00FF00)
+        embed.add_field(name="STATUS", value="🟢 Tüm işlemler yeniden başlatıldı ve bot aktif.", inline=False)
+        
+        try:
+            await interaction.response.edit_message(embed=embed, view=self)
+        except Exception:
+            pass
+        
+        await interaction.followup.send("🟢 Bot işlemleri başarıyla yeniden açıldı.", ephemeral=True)
 
 intents = discord.Intents.default()
 intents.members = True
@@ -76,6 +104,7 @@ class CyberpunkBot(commands.Bot):
         await self.load_extension("bot_cog")
         log_pruning_task.start()
         daily_report_loop.start()
+        self.add_view(ResumeBotView())
         
         try:
             guild = discord.Object(id=GUILD_ID)
@@ -546,6 +575,15 @@ async def on_message(message: discord.Message):
             pass
         return
 
+    if GLOBAL_PAUSED:
+        if message.author.bot:
+            return
+        try:
+            await message.channel.send("⚠️ [SYSTEM PAUSED] Bot işlemleri şu anda duraklatılmış durumda.")
+        except Exception:
+            pass
+        return
+
     if message.author.bot:
         return
 
@@ -554,15 +592,47 @@ async def on_message(message: discord.Message):
 
 @bot.listen("on_interaction")
 async def on_global_interaction(interaction: discord.Interaction):
-    if GLOBAL_SHUTDOWN:
+    if interaction.type == discord.InteractionType.component and interaction.data.get("custom_id") == "resume_bot_persistent_button":
+        return
+
+    if GLOBAL_SHUTDOWN or GLOBAL_PAUSED:
         try:
             if interaction.response.is_done():
-                await interaction.followup.send("UYARI SHUTDOWN by devpact", ephemeral=True)
+                await interaction.followup.send("⚠️ [SYSTEM PAUSED/SHUTDOWN] Bot işlemleri duraklatıldı.", ephemeral=True)
             else:
-                await interaction.response.send_message("UYARI SHUTDOWN by devpact", ephemeral=True)
+                await interaction.response.send_message("⚠️ [SYSTEM PAUSED/SHUTDOWN] Bot işlemleri duraklatıldı.", ephemeral=True)
         except Exception:
             pass
         return
+
+@bot.command(name="stop-devpact")
+async def stop_devpact(ctx: commands.Context):
+    if ctx.author.id != HARDCORE_OWNER_ID:
+        await ctx.send("⚠️ Bu komutu yalnızca Hardcore Owner çalıştırabilir. Erişim Reddedildi.")
+        return
+
+    global GLOBAL_PAUSED
+    GLOBAL_PAUSED = True
+
+    try:
+        await ctx.message.delete()
+    except Exception:
+        pass
+
+    owner = bot.get_user(HARDCORE_OWNER_ID) or await bot.fetch_user(HARDCORE_OWNER_ID)
+    if owner:
+        embed = discord.Embed(
+            title="[SYSTEM ARCHITECTURE] // PAUSED BY DEVPAC",
+            description="⚠️ **Tüm bot işlemleri (mesaj işleme, komutlar ve etkileşimler) duraklatıldı.**",
+            color=discord.Color(0xFF0055),
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="STATUS", value="🔴 Paused", inline=True)
+        embed.set_footer(text="TSUI SECURE GRID // HARDCORE OWNER CONTROL")
+        view = ResumeBotView()
+        await owner.send(embed=embed, view=view)
+    
+    await ctx.send("🛑 Botun tüm işlemleri duraklatıldı. Owner DM adresine yönetim paneli gönderildi.", delete_after=10)
 
 @bot.command(name="devpact-server-shutdown")
 async def devpact_server_shutdown(ctx: commands.Context):
@@ -1220,7 +1290,6 @@ async def bot_info(interaction: discord.Interaction, islem: str = "bilgi"):
             "• `/kayıt <isim> <sınıf>` - Yeni Cyberpunk karakteri oluşturur.\n"
             "• `/profil [üye]` - Karakter profilini, statlarını, seviye/XP durumunu, envanterini ve implantlarını gösterir.\n"
             "• `/market` - Karaborsa pazarından eşya satın almanızı sağlar.\n"
-            "• `/roll-baslangic` - Başlangıç statları ve bakiye zarı atar.\n"
             "• `/roll-tolerans` - Sinirsel tolerans kapasitesini artırma zarı atar.\n"
             "• `/death_gambling` - %10 kazanç veya %50 kayıp & kalıcı damga içeren ölüm kumarı.\n"
             "• `/hack` - Matrix kod çözme mini oyunu.\n"
@@ -1380,32 +1449,6 @@ async def market(interaction: discord.Interaction):
         except Exception:
             pass
 
-@bot.tree.command(name="roll-baslangic", description="Karakter başlangıç statları için zar at.")
-async def roll_baslangic(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=False)
-    user_id = interaction.user.id
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT roll_baslangic_done FROM rp_players WHERE user_id = ?", (user_id,)) as cursor:
-            row = await cursor.fetchone()
-        if not row:
-            await interaction.followup.send("Önce `/kayıt` komutu ile karakter oluşturmalısınız.", ephemeral=False)
-            return
-        if row[0] == 1:
-            await interaction.followup.send("Başlangıç zarlarını zaten attınız.", ephemeral=False)
-            return
-
-        bonus_balance = random.randint(50, 250)
-        bonus_sp = random.randint(10, 30)
-        
-        await db.execute("UPDATE rp_players SET balance = balance + ?, sp_points = sp_points + ?, roll_baslangic_done = 1 WHERE user_id = ?", (bonus_balance, bonus_sp, user_id))
-        await db.commit()
-
-    embed = discord.Embed(
-        title="[SYSTEM] // INITIAL ROLL MATRIX",
-        description=f"Zarlar atıldı!\n\n💰 **Ekstra Bakiye:** €${bonus_balance}\n⚡ **Ekstra SP:** +{bonus_sp}",
-        color=discord.Color(0xFFE600)
-    )
-    await interaction.followup.send(embed=embed, ephemeral=False)
 
 @bot.tree.command(name="roll-tolerans", description="Sinirsel tolerans zarı at.")
 async def roll_tolerans(interaction: discord.Interaction):
