@@ -7,28 +7,101 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <header>
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <h1>[TSUİ] // BOT MANAGEMENT</h1>
-            <span class="badge badge-cyan" style="font-size: 11px; padding: 4px 10px; box-shadow: 0 0 10px var(--neon-cyan); letter-spacing: 1px;">MADE BY devpact</span>
-        </div>
-        <div class="nav-links">
-            <a href="/admin/dashboard">Dashboard</a>
-            <a href="/admin/implants">Hardware Catalog</a>
-            <a href="/admin/market">Store Catalog</a>
-            <a href="/admin/lore">Chronology</a>
-            <a href="/admin/channels">Channels</a>
-            <a href="/admin/logs">Live Logs</a>
-            <a href="/admin/logout" style="border-color: var(--neon-red); color: var(--neon-red);">Disconnect</a>
-        </div>
-    </header>
+    <canvas id="space-canvas"></canvas>
+    <div class="devpact-watermark" id="devpactWatermark">DEV PACT</div>
 
-    {% block content %}{% endblock %}
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>[TSUİ] // BOT</h1>
+                <span class="badge badge-cyan" style="font-size: 10px; padding: 3px 8px; box-shadow: 0 0 10px var(--neon-cyan); letter-spacing: 1px;">DEV PACT</span>
+            </div>
+            <nav class="nav-links-vertical">
+                <a href="/admin/dashboard">Dashboard</a>
+                <a href="/admin/implants">Hardware Catalog</a>
+                <a href="/admin/market">Store Catalog</a>
+                <a href="/admin/lore">Chronology</a>
+                <a href="/admin/channels">Channels</a>
+                <a href="/admin/logs">Live Logs</a>
+                <a href="/admin/logout" style="border-color: var(--neon-red); color: var(--neon-red);">Disconnect</a>
+            </nav>
+        </aside>
 
-    <footer style="margin-top: 40px; padding: 20px 0; border-top: 1px dashed var(--border-color); text-align: center; font-size: 12px; color: var(--text-muted);">
-        <span style="color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink); font-weight: bold;">MADE BY devpact</span> // ALL RIGHTS RESERVED
-    </footer>
+        <main class="main-content">
+            {% block content %}{% endblock %}
 
+            <footer style="margin-top: 40px; padding: 20px 0; border-top: 1px dashed var(--border-color); text-align: center; font-size: 12px; color: var(--text-muted);">
+                <span style="color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink); font-weight: bold;">MADE BY devpact</span> // ALL RIGHTS RESERVED
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('space-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const stars = [];
+        const numStars = 180;
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+        let targetMouseX = mouseX;
+        let targetMouseY = mouseY;
+
+        for (let i = 0; i < numStars; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2 + 0.5,
+                speed: Math.random() * 0.4 + 0.05,
+                alpha: Math.random()
+            });
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            targetMouseX = e.clientX;
+            targetMouseY = e.clientY;
+        });
+
+        const watermark = document.getElementById('devpactWatermark');
+
+        function animate() {
+            mouseX += (targetMouseX - mouseX) * 0.05;
+            mouseY += (targetMouseY - mouseY) * 0.05;
+
+            const dx = (mouseX - window.innerWidth / 2) * 0.04;
+            const dy = (mouseY - window.innerHeight / 2) * 0.04;
+
+            watermark.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#05050A';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#FFFFFF';
+            stars.forEach(star => {
+                star.y -= star.speed;
+                if (star.y < 0) star.y = canvas.height;
+
+                const pX = star.x + (mouseX - window.innerWidth / 2) * (star.size * 0.015);
+                const pY = star.y + (mouseY - window.innerHeight / 2) * (star.size * 0.015);
+
+                ctx.globalAlpha = Math.abs(Math.sin(Date.now() * 0.001 * star.speed + star.x)) * 0.8 + 0.2;
+                ctx.beginPath();
+                ctx.arc(pX, pY, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

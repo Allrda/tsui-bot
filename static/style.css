@@ -19,9 +19,105 @@ body {
     color: var(--text-main);
     font-family: 'JetBrains Mono', 'Fira Code', 'Share Tech Mono', monospace;
     margin: 0;
+    padding: 0;
+}
+
+/* Space Canvas Background & Watermark */
+#space-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -2;
+    pointer-events: none;
+}
+
+.devpact-watermark {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 13vw;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.022);
+    letter-spacing: 15px;
+    z-index: -1;
+    pointer-events: none;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: nowrap;
+    text-shadow: 0 0 40px rgba(0, 240, 255, 0.04);
+    user-select: none;
+}
+
+/* App Layout with Sidebar */
+.app-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 260px;
+    background: rgba(18, 18, 31, 0.92);
+    border-right: 2px solid var(--border-color);
     padding: 20px;
-    background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-    background-size: 100% 4px, 6px 100%;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 100;
+    box-shadow: 5px 0 25px rgba(0,0,0,0.8);
+    backdrop-filter: blur(8px);
+}
+
+.sidebar-header {
+    border-bottom: 2px solid var(--neon-pink);
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+}
+
+.sidebar-header h1 {
+    color: var(--neon-pink);
+    text-shadow: 0 0 10px var(--neon-pink);
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    letter-spacing: 1px;
+}
+
+.nav-links-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.nav-links-vertical a {
+    color: var(--neon-cyan);
+    text-decoration: none;
+    font-weight: bold;
+    border: 1px solid var(--neon-cyan);
+    padding: 10px 14px;
+    clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+    transition: all 0.2s ease-in-out;
+    display: block;
+    text-align: left;
+    background: rgba(0, 240, 255, 0.03);
+    font-size: 13px;
+}
+
+.nav-links-vertical a:hover {
+    background: var(--neon-cyan);
+    color: var(--bg-primary);
+    box-shadow: 0 0 15px var(--neon-cyan);
+    transform: translateX(4px);
+}
+
+.main-content {
+    flex: 1;
+    margin-left: 260px;
+    padding: 30px;
+    box-sizing: border-box;
 }
 
 @keyframes slideIn {
@@ -44,48 +140,11 @@ body {
     100% { box-shadow: 0 0 5px var(--neon-red); opacity: 0.9; }
 }
 
-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 2px solid var(--neon-pink);
-    padding-bottom: 15px;
-    margin-bottom: 25px;
-    animation: slideIn 0.3s ease;
-}
-
-h1 {
-    color: var(--neon-pink);
-    text-shadow: 0 0 10px var(--neon-pink);
-    margin: 0;
-    font-size: 22px;
-    letter-spacing: 1px;
-}
-h1:hover { animation: glitch 0.3s ease infinite; }
-
-.nav-links a {
-    color: var(--neon-cyan);
-    text-decoration: none;
-    margin-left: 15px;
-    font-weight: bold;
-    border: 1px solid var(--neon-cyan);
-    padding: 6px 12px;
-    clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
-    transition: all 0.2s ease-in-out;
-    display: inline-block;
-}
-.nav-links a:hover {
-    background: var(--neon-cyan);
-    color: var(--bg-primary);
-    box-shadow: 0 0 15px var(--neon-cyan);
-    transform: translateY(-2px);
-}
-
 .section {
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
     clip-path: var(--cut-corner);
-    padding: 20px;
+    padding: 25px;
     margin-bottom: 25px;
     box-shadow: 0 0 15px rgba(0,0,0,0.6);
     animation: slideIn 0.4s ease;
@@ -188,4 +247,10 @@ button:hover, input[type="submit"]:hover {
 .close-btn:hover {
     background: var(--neon-cyan);
     color: var(--bg-primary);
+}
+
+@media (max-width: 900px) {
+    .sidebar { width: 100%; height: auto; position: relative; }
+    .main-content { margin-left: 0; }
+    .app-container { flex-direction: column; }
 }
